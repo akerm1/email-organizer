@@ -202,7 +202,7 @@ function initDarkMode() {
 
 // Notification Settings
 function getNotificationSettings() {
-    const defaults = { enabled: true, daysBefore: 30, notifyOnExpirationDay: true, notifyExpired: true, telegramEnabled: false, telegramBotToken: '', telegramChatId: '' };
+    const defaults = { enabled: true, notifyMode: 'expired', daysBefore: 7, telegramEnabled: false, telegramBotToken: '', telegramChatId: '', notifyHour: 0, notifyMinute: 0 };
     try {
         const saved = localStorage.getItem('emailOrgNotificationSettings');
         return saved ? { ...defaults, ...JSON.parse(saved) } : defaults;
@@ -215,20 +215,19 @@ function saveNotificationPrefs(settings) {
 
 function getExpiringAccounts() {
     const settings = getNotificationSettings();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
     const results = [];
 
     accounts.forEach(account => {
         if (!account.date) return;
         const days = getDaysUntilExpiry(account.date);
+        if (days === null) return;
 
-        if (settings.notifyExpired && days < 0) {
+        if (settings.notifyMode === 'expired' && days < 0) {
             results.push({ ...account, daysUntilExpiry: days, status: 'expired' });
-        } else if (settings.notifyOnExpirationDay && days === 0) {
-            results.push({ ...account, daysUntilExpiry: 0, status: 'today' });
-        } else if (days !== null && days > 0 && days <= settings.daysBefore) {
-            results.push({ ...account, daysUntilExpiry: days, status: 'expiring' });
+        } else if (settings.notifyMode === 'today' && (days < 0 || days === 0)) {
+            results.push({ ...account, daysUntilExpiry: days, status: days < 0 ? 'expired' : 'today' });
+        } else if (settings.notifyMode === 'upcoming' && days >= 0 && days <= settings.daysBefore) {
+            results.push({ ...account, daysUntilExpiry: days, status: days === 0 ? 'today' : 'expiring' });
         }
     });
 
@@ -345,6 +344,7 @@ function resetNotificationState() {
 
 function checkAndNotify() {
     const settings = getNotificationSettings();
+    if (!settings.enabled) return;
     const expiring = getExpiringAccounts();
     const newNotifs = expiring.filter(a => !notifiedAccountIds.has(a.id));
     if (newNotifs.length === 0) return;
@@ -363,8 +363,7 @@ function checkAndNotify() {
             title = `Expires in ${account.daysUntilExpiry} day(s)`;
             body = `${account.email} (${account.client}) - Day ${extractDay(account.date)} in ${account.daysUntilExpiry} day(s).`;
         }
-        if (settings.enabled) sendBrowserNotification(title, body);
-        sendTelegramMessage(`<b>${title}</b>\n${body}`);
+        sendBrowserNotification(title, body);
     });
     renderExpiringAccounts();
 }
@@ -372,9 +371,11 @@ function checkAndNotify() {
 function openNotificationSettings() {
     const settings = getNotificationSettings();
     document.getElementById('notificationsEnabled').checked = settings.enabled;
+    document.getElementById('notifyMode').value = settings.notifyMode;
     document.getElementById('notifyDaysBefore').value = settings.daysBefore;
-    document.getElementById('notifyOnExpirationDay').checked = settings.notifyOnExpirationDay;
-    document.getElementById('notifyExpired').checked = settings.notifyExpired;
+    document.getElementById('notifyHour').value = settings.notifyHour;
+    document.getElementById('notifyMinute').value = settings.notifyMinute;
+    document.getElementById('daysBeforeGroup').style.display = settings.notifyMode === 'upcoming' ? 'block' : 'none';
     document.getElementById('telegramEnabled').checked = settings.telegramEnabled;
     document.getElementById('telegramBotToken').value = settings.telegramBotToken;
     document.getElementById('telegramChatId').value = settings.telegramChatId;
@@ -384,12 +385,13 @@ function openNotificationSettings() {
 function saveNotificationSettings() {
     const settings = {
         enabled: document.getElementById('notificationsEnabled').checked,
-        daysBefore: Math.max(1, Math.min(365, parseInt(document.getElementById('notifyDaysBefore').value) || 1)),
-        notifyOnExpirationDay: document.getElementById('notifyOnExpirationDay').checked,
-        notifyExpired: document.getElementById('notifyExpired').checked,
+        notifyMode: document.getElementById('notifyMode').value,
+        daysBefore: Math.max(1, Math.min(365, parseInt(document.getElementById('notifyDaysBefore').value) || 7)),
         telegramEnabled: document.getElementById('telegramEnabled').checked,
         telegramBotToken: document.getElementById('telegramBotToken').value.trim(),
-        telegramChatId: document.getElementById('telegramChatId').value.trim()
+        telegramChatId: document.getElementById('telegramChatId').value.trim(),
+        notifyHour: Math.max(0, Math.min(23, parseInt(document.getElementById('notifyHour').value) || 0)),
+        notifyMinute: Math.max(0, Math.min(59, parseInt(document.getElementById('notifyMinute').value) || 0))
     };
     saveNotificationPrefs(settings);
     document.getElementById('notificationSettingsModal').style.display = 'none';
@@ -428,7 +430,17 @@ function updateNotificationButton() {
 function startNotificationChecker() {
     if (notificationInterval) clearInterval(notificationInterval);
     checkAndNotify();
-    notificationInterval = setInterval(checkAndNotify, 60 * 60 * 1000);
+    notificationInterval = setInterval(() => {
+        const settings = getNotificationSettings();
+        const now = new Date();
+        const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+        const algeria = new Date(utc + 3600000);
+        const algeriaHour = algeria.getHours();
+        const algeriaMin = algeria.getMinutes();
+        if (algeriaHour === settings.notifyHour && algeriaMin === settings.notifyMinute) {
+            checkAndNotify();
+        }
+    }, 60 * 1000);
 }
 
 // Firebase CRUD
@@ -1002,16 +1014,13 @@ function renderExpiringAccounts() {
     const settings = getNotificationSettings();
 
     let titleText = 'Accounts Expiring Soon';
-    if (settings.daysBefore === 30 && settings.notifyOnExpirationDay) {
-        titleText = 'Expiring Within 30 Days';
-    } else if (settings.daysBefore === 1 && settings.notifyOnExpirationDay) {
-        titleText = 'Expiring Tomorrow or Today';
-    } else if (settings.daysBefore === 1) {
-        titleText = 'Expiring Tomorrow';
-    } else {
-        titleText = `Expiring in ${settings.daysBefore} Days`;
+    if (settings.notifyMode === 'expired') {
+        titleText = 'Expired Accounts';
+    } else if (settings.notifyMode === 'today') {
+        titleText = 'Expiring Today or Expired';
+    } else if (settings.notifyMode === 'upcoming') {
+        titleText = `Expiring Within ${settings.daysBefore} Days`;
     }
-    if (settings.notifyExpired) titleText += ' (+ Expired)';
     titleEl.textContent = titleText;
 
     if (!expiring.length) {

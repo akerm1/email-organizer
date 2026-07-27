@@ -342,29 +342,30 @@
                     <p class="settings-hint">Receive browser notifications when accounts are about to expire.</p>
                 </div>
                 <div class="settings-group">
-                    <label class="settings-label" for="notifyDaysBefore">Notify me days before expiration</label>
+                    <label class="settings-label" for="notifyMode">Notify Mode</label>
+                    <select id="notifyMode" class="days-input" style="width:100%; box-sizing:border-box;" onchange="document.getElementById('daysBeforeGroup').style.display=this.value==='upcoming'?'block':'none'">
+                        <option value="expired">Expired Only</option>
+                        <option value="today">Today &amp; Expired</option>
+                        <option value="upcoming">Within X Days</option>
+                    </select>
+                    <p class="settings-hint">Choose which accounts trigger notifications.</p>
+                </div>
+                <div class="settings-group" id="daysBeforeGroup" style="display:none;">
+                    <label class="settings-label" for="notifyDaysBefore">Days before expiration</label>
                     <div class="days-input-row">
-                        <input type="number" id="notifyDaysBefore" min="1" max="365" value="30" class="days-input">
-                        <span class="days-label">day(s) before</span>
+                        <input type="number" id="notifyDaysBefore" min="1" max="365" value="7" class="days-input">
+                        <span class="days-label">day(s)</span>
                     </div>
                 </div>
                 <div class="settings-group">
-                    <label class="settings-label">
-                        <span>Also notify on the expiration day</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="notifyOnExpirationDay" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </label>
-                </div>
-                <div class="settings-group">
-                    <label class="settings-label">
-                        <span>Also notify for already expired accounts</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="notifyExpired">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </label>
+                    <label class="settings-label" for="notifyHour">Notification Time (Algeria)</label>
+                    <div class="days-input-row">
+                        <input type="number" id="notifyHour" min="0" max="23" value="0" class="days-input" style="width:70px;">
+                        <span class="days-label">:</span>
+                        <input type="number" id="notifyMinute" min="0" max="59" value="0" class="days-input" style="width:70px;">
+                        <span class="days-label">Algeria time</span>
+                    </div>
+                    <p class="settings-hint">Browser notifications will fire near this time. GitHub Actions also sends at 00:00 Algeria time.</p>
                 </div>
 
                 <hr style="border:none; border-top:1px solid var(--border-color); margin: 16px 0;">
@@ -377,7 +378,7 @@
                             <span class="toggle-slider"></span>
                         </label>
                     </label>
-                    <p class="settings-hint">Send expiry alerts to your Telegram account.</p>
+                    <p class="settings-hint">Telegram notifications are sent by GitHub Actions at 00:00 Algeria time. Use this only for testing.</p>
                 </div>
                 <div class="settings-group">
                     <label class="settings-label" for="telegramBotToken">Bot Token</label>

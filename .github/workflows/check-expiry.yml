@@ -2,7 +2,7 @@ name: Check Email Expiry & Notify Telegram
 
 on:
   schedule:
-    - cron: '30 21 * * *'  # 22:30 Algeria time (UTC+1)
+    - cron: '0 23 * * *'  # 00:00 Algeria time (23:00 UTC)
   workflow_dispatch:        # Manual trigger
 
 jobs:
@@ -25,8 +25,8 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          NOTIFY_DAYS_BEFORE: '30'
+          NOTIFY_DAYS_BEFORE: '0'
           NOTIFY_EXPIRED: 'true'
-          NOTIFY_EXPIRATION_DAY: 'true'
+          NOTIFY_EXPIRATION_DAY: 'false'
           GITHUB_EVENT_NAME: ${{ github.event_name }}
         run: node check-expiry.js
