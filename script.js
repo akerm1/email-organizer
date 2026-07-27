@@ -184,6 +184,139 @@ function toggleSection(id) {
     if (arrow) arrow.classList.toggle('collapsed', !isHidden);
 }
 
+// Chunked Firestore Batch (handles 500-op limit)
+const BATCH_LIMIT = 500;
+
+async function chunkedBatch(operations) {
+    for (let i = 0; i < operations.length; i += BATCH_LIMIT) {
+        const chunk = operations.slice(i, i + BATCH_LIMIT);
+        const batch = db.batch();
+        chunk.forEach(op => {
+            if (op.type === 'set') batch.set(op.ref, op.data);
+            else if (op.type === 'update') batch.update(op.ref, op.data);
+            else if (op.type === 'delete') batch.delete(op.ref);
+        });
+        await batch.commit();
+    }
+}
+
+// Client Management
+async function renameClient(oldName) {
+    const newName = prompt(`Rename client "${oldName}" to:`, oldName);
+    if (!newName || newName.trim() === oldName) return;
+    const trimmed = newName.trim();
+    if (!trimmed) { showMessage('Client name cannot be empty', 'error'); return; }
+    try {
+        showLoading();
+        const toUpdate = accounts.filter(a => a.client === oldName);
+        const ops = toUpdate.map(a => ({
+            type: 'update', ref: db.collection('accounts').doc(a.id), data: { client: trimmed }
+        }));
+        await chunkedBatch(ops);
+        toUpdate.forEach(a => a.client = trimmed);
+        clients = [...new Set(accounts.map(a => a.client))].filter(Boolean);
+        hideLoading();
+        showMessage(`Client renamed to "${trimmed}"`);
+        updateStats();
+        renderAccounts();
+        renderExpiringAccounts();
+        renderProblemAccounts();
+        if (isSearchActive) performSearch();
+    } catch (error) {
+        hideLoading();
+        showMessage('Error renaming client', 'error');
+    }
+}
+
+async function deleteClient(clientName) {
+    const count = accounts.filter(a => a.client === clientName).length;
+    if (!count) return;
+    showConfirmModal(`Delete client "${clientName}" and all ${count} account(s)?`, async () => {
+        try {
+            showLoading();
+            const toDelete = accounts.filter(a => a.client === clientName);
+            const ops = toDelete.map(a => ({
+                type: 'delete', ref: db.collection('accounts').doc(a.id)
+            }));
+            await chunkedBatch(ops);
+            accounts = accounts.filter(a => a.client !== clientName);
+            selectedAccountIds.clear();
+            clients = [...new Set(accounts.map(a => a.client))].filter(Boolean);
+            hideLoading();
+            showMessage(`Deleted client "${clientName}" and ${count} accounts`);
+            loadRetryCount = 0;
+            updateStats();
+            updateBulkBar();
+            renderAccounts();
+            renderExpiringAccounts();
+            renderProblemAccounts();
+            if (isSearchActive) renderSearchResults();
+        } catch (error) {
+            hideLoading();
+            showMessage('Error deleting client', 'error');
+        }
+    });
+}
+
+// Day Picker (visual calendar for selecting day-of-month)
+function createDayPicker(container, currentDay) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const lastDate = new Date(year, month + 1, 0).getDate();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    container.innerHTML = '';
+    container.className = 'day-picker';
+
+    const header = document.createElement('div');
+    header.className = 'dp-header';
+    header.textContent = `${months[month]} ${year}`;
+    container.appendChild(header);
+
+    const dow = document.createElement('div');
+    dow.className = 'dp-dow';
+    ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].forEach(d => {
+        const el = document.createElement('span');
+        el.textContent = d;
+        dow.appendChild(el);
+    });
+    container.appendChild(dow);
+
+    const grid = document.createElement('div');
+    grid.className = 'dp-grid';
+
+    const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+    for (let i = 0; i < startOffset; i++) {
+        const empty = document.createElement('span');
+        empty.className = 'dp-empty';
+        grid.appendChild(empty);
+    }
+
+    const today = now.getDate();
+    for (let day = 1; day <= lastDate; day++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'dp-day';
+        if (day === currentDay) btn.classList.add('selected');
+        if (day === today) btn.classList.add('today');
+        btn.textContent = day;
+        btn.addEventListener('click', () => {
+            grid.querySelectorAll('.dp-day.selected').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+        });
+        grid.appendChild(btn);
+    }
+
+    container.appendChild(grid);
+}
+
+function getDayPickerValue(container) {
+    const selected = container.querySelector('.dp-day.selected');
+    return selected ? parseInt(selected.textContent) : null;
+}
+
 // Dark Mode
 function toggleDarkMode() {
     const isDark = document.body.getAttribute('data-theme') === 'dark';
@@ -526,19 +659,19 @@ async function deleteAccount(id) {
 }
 
 async function bulkSaveAccounts(accountsData) {
-    const batch = db.batch();
-    accountsData.forEach(d => {
-        const ref = db.collection('accounts').doc();
-        batch.set(ref, {
+    const ops = accountsData.map(d => ({
+        type: 'set',
+        ref: db.collection('accounts').doc(),
+        data: {
             client: d.client,
             email: d.email,
             date: formatDateForStorage(d.date),
             replacementEmail: '',
             hasProblem: false,
             problemNote: ''
-        });
-    });
-    await batch.commit();
+        }
+    }));
+    await chunkedBatch(ops);
 }
 
 // Stats Dashboard
@@ -648,11 +781,11 @@ function bulkDeleteSelected() {
     showConfirmModal(`Delete ${count} selected account(s)?`, async () => {
         try {
             showLoading();
-            const batch = db.batch();
-            selectedAccountIds.forEach(id => {
-                batch.delete(db.collection('accounts').doc(id));
-            });
-            await batch.commit();
+            const ids = [...selectedAccountIds];
+            const ops = ids.map(id => ({
+                type: 'delete', ref: db.collection('accounts').doc(id)
+            }));
+            await chunkedBatch(ops);
             accounts = accounts.filter(a => !selectedAccountIds.has(a.id));
             selectedAccountIds.clear();
             updateBulkBar();
@@ -674,7 +807,7 @@ function bulkDeleteSelected() {
 
 function openBulkEditModal() {
     if (!selectedAccountIds.size) return;
-    document.getElementById('bulkEditDate').value = '';
+    createDayPicker(document.getElementById('bulkEditDatePicker'), new Date().getDate());
     document.getElementById('bulkEditReplacement').value = '';
     document.getElementById('bulkEditClearProblems').checked = false;
     document.getElementById('bulkEditMarkProblems').checked = false;
@@ -682,7 +815,9 @@ function openBulkEditModal() {
 }
 
 async function processBulkEdit() {
-    const date = document.getElementById('bulkEditDate').value;
+    const dayPicker = document.getElementById('bulkEditDatePicker');
+    const selectedDay = dayPicker ? getDayPickerValue(dayPicker) : null;
+    const date = selectedDay ? String(selectedDay) : '';
     const replacement = document.getElementById('bulkEditReplacement').value.trim();
     const clearProblems = document.getElementById('bulkEditClearProblems').checked;
     const markProblems = document.getElementById('bulkEditMarkProblems').checked;
@@ -694,27 +829,28 @@ async function processBulkEdit() {
 
     try {
         showLoading();
-        const batch = db.batch();
-        selectedAccountIds.forEach(id => {
+        const ids = [...selectedAccountIds];
+        const ops = [];
+        ids.forEach(id => {
             const account = accounts.find(a => a.id === id);
             if (!account) return;
-            const updates = { ...account };
-            if (date) updates.date = date;
-            if (replacement) updates.replacementEmail = replacement;
-            if (clearProblems) { updates.hasProblem = false; updates.problemNote = ''; }
-            if (markProblems) { updates.hasProblem = true; }
-            batch.update(db.collection('accounts').doc(id), {
-                date: date ? updates.date : account.date,
-                replacementEmail: replacement || account.replacementEmail,
-                hasProblem: updates.hasProblem,
-                problemNote: updates.problemNote || account.problemNote
-            });
-            Object.assign(account, updates);
+            const updateData = {};
+            if (date) updateData.date = date;
+            if (replacement) updateData.replacementEmail = replacement;
+            if (clearProblems) { updateData.hasProblem = false; updateData.problemNote = ''; }
+            if (markProblems) { updateData.hasProblem = true; }
+            if (Object.keys(updateData).length) {
+                ops.push({ type: 'update', ref: db.collection('accounts').doc(id), data: updateData });
+            }
+            if (date) account.date = date;
+            if (replacement) account.replacementEmail = replacement;
+            if (clearProblems) { account.hasProblem = false; account.problemNote = ''; }
+            if (markProblems) account.hasProblem = true;
         });
-        await batch.commit();
+        await chunkedBatch(ops);
         hideLoading();
         document.getElementById('bulkEditModal').style.display = 'none';
-        showMessage(`Updated ${selectedAccountIds.size} accounts`);
+        showMessage(`Updated ${ids.length} accounts`);
         clearSelection();
         clients = [...new Set(accounts.map(a => a.client))].filter(Boolean);
         updateStats();
@@ -923,6 +1059,8 @@ function createClientSection(clientName, clientAccounts) {
                 <button class="btn btn-success btn-small" onclick="addNewAccount(decodeURIComponent(this.dataset.client))" data-client="${encodeURIComponent(clientName)}">+ Add</button>
                 <button class="btn btn-primary btn-small" onclick="openBulkUpload(decodeURIComponent(this.dataset.client))" data-client="${encodeURIComponent(clientName)}">+ Bulk</button>
                 <button class="btn btn-copy btn-small" onclick="copyToClipboard(decodeURIComponent(this.dataset.emails))" data-emails="${encodeURIComponent(clientAccounts.map(a => a.email).join(', '))}">Copy All</button>
+                <button class="btn btn-secondary btn-small" onclick="renameClient(decodeURIComponent(this.dataset.client))" data-client="${encodeURIComponent(clientName)}">Rename</button>
+                <button class="btn btn-danger btn-small" onclick="deleteClient(decodeURIComponent(this.dataset.client))" data-client="${encodeURIComponent(clientName)}">Delete</button>
             </div>
         </div>
         <div class="table-container" style="max-height:${showToggle && !isExpanded ? '300px' : 'none'};overflow-y:${showToggle && !isExpanded ? 'auto' : 'visible'};">
@@ -1077,7 +1215,7 @@ function addNewAccount(clientName) {
     row.innerHTML = `
         <td class="checkbox-col"></td>
         <td><input type="email" class="new-email" placeholder="Enter email" required></td>
-        <td><input type="number" class="new-date" min="1" max="31" value="${new Date().getDate()}" placeholder="Day"></td>
+        <td><div class="day-picker-inline"></div></td>
         <td>-</td>
         <td><span class="status-badge ok">OK</span></td>
         <td>-</td>
@@ -1088,13 +1226,15 @@ function addNewAccount(clientName) {
             </div>
         </td>`;
     tbody.insertBefore(row, tbody.firstChild);
+    createDayPicker(row.querySelector('.day-picker-inline'), new Date().getDate());
     row.querySelector('.new-email').focus();
 }
 
 async function saveNewAccount(clientName, button) {
     const row = button.closest('tr');
     const email = row.querySelector('.new-email').value.trim();
-    const date = row.querySelector('.new-date').value;
+    const dayPicker = row.querySelector('.day-picker-inline');
+    const date = dayPicker ? String(getDayPickerValue(dayPicker) || new Date().getDate()) : '';
 
     if (!email || !validateEmail(email)) { showMessage('Please enter a valid email', 'error'); return; }
     if (!validateDate(date)) { showMessage('Please enter a valid date', 'error'); return; }
@@ -1143,7 +1283,11 @@ function editAccount(id) {
     if (!emailCell || !dateCell || !actionsCell) return;
 
     emailCell.innerHTML = `<input type="email" class="edit-email" value="${escapeHtml(account.email)}">`;
-    dateCell.innerHTML = `<input type="number" class="edit-date" min="1" max="31" value="${extractDay(account.date) || ''}" placeholder="Day">`;
+    dateCell.innerHTML = '';
+    const dayPickerDiv = document.createElement('div');
+    dayPickerDiv.className = 'day-picker-inline';
+    dateCell.appendChild(dayPickerDiv);
+    createDayPicker(dayPickerDiv, extractDay(account.date) || new Date().getDate());
     actionsCell.innerHTML = `
         <div class="action-buttons">
             <button class="btn btn-success btn-small" onclick="saveAccountEdit('${id}')">Save</button>
@@ -1158,7 +1302,8 @@ async function saveAccountEdit(id) {
     if (!row) return;
 
     const email = row.querySelector('.edit-email').value.trim();
-    const date = row.querySelector('.edit-date').value;
+    const dayPicker = row.querySelector('.day-picker-inline');
+    const date = dayPicker ? String(getDayPickerValue(dayPicker) || new Date().getDate()) : '';
 
     if (!email || !validateEmail(email)) { showMessage('Valid email required', 'error'); return; }
     if (!validateDate(date)) { showMessage('Valid date required', 'error'); return; }

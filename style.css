@@ -1177,7 +1177,99 @@ th {
     margin-left: 8px;
 }
 
-/* Error box */
+/* Day Picker Calendar */
+.day-picker {
+    display: inline-block;
+    user-select: none;
+}
+
+.day-picker-inline {
+    min-width: 200px;
+}
+
+.dp-header {
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    padding: 4px 0;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+}
+
+.dp-dow {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+    margin-bottom: 1px;
+}
+
+.dp-dow span {
+    text-align: center;
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+    padding: 2px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.dp-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 1px;
+}
+
+.dp-day, .dp-empty {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 500;
+    width: 28px;
+}
+
+.dp-day {
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    transition: var(--transition);
+}
+
+.dp-day:hover {
+    background: var(--accent-bg);
+    color: var(--accent);
+}
+
+.dp-day.today {
+    font-weight: 800;
+    color: var(--accent);
+    border: 2px solid var(--accent);
+}
+
+.dp-day.selected {
+    background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+    color: white;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+}
+
+.dp-day.selected:hover {
+    background: linear-gradient(135deg, var(--accent-light), var(--accent));
+}
+
+.dp-empty {
+    color: transparent;
+}
+
+/* Day picker inline in editing rows */
+.editing-row .day-picker-inline {
+    display: flex;
+    justify-content: center;
+}
 #errorBox {
     position: fixed;
     top: 20px;
