@@ -2,13 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>EmailVault Pro - Account Organizer</title>
     
     <!-- SEO & Meta -->
     <meta name="description" content="Professional email account management with smart expiry notifications at 9:46 AM">
     <meta name="theme-color" content="#6366f1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="EmailVault">
     <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     
     <!-- Fonts & Icons -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,6 +26,7 @@
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="css/dark-theme.css">
     <link rel="stylesheet" href="css/animations.css">
+    <link rel="stylesheet" href="css/mobile.css">
 </head>
 <body>
     <!-- Loading Screen -->
@@ -112,6 +119,12 @@
                         <input type="text" id="globalSearch" placeholder="Search accounts, clients..." class="search-input">
                         <kbd>Ctrl+K</kbd>
                     </div>
+                    <button class="btn btn-icon search-toggle" id="searchToggle" title="Search" aria-label="Search">
+                        <i class="fas fa-search"></i>
+                    </button>
+                    <button class="btn btn-icon" id="installBtn" title="Download App" aria-label="Download App">
+                        <i class="fas fa-download"></i>
+                    </button>
                     <button class="btn btn-icon" id="notifBell" title="Notifications">
                         <i class="fas fa-bell"></i>
                         <span class="notification-dot" id="notifDot"></span>
@@ -365,6 +378,123 @@
         </main>
     </div>
 
+    <!-- Sidebar Backdrop (mobile) -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+    <!-- Bottom Navigation (mobile) -->
+    <nav class="bottom-nav" id="bottomNav">
+        <button class="bottom-nav-item active" data-page="dashboard" title="Dashboard">
+            <i class="fas fa-th-large"></i>
+            <span>Home</span>
+        </button>
+        <button class="bottom-nav-item" data-page="accounts" title="Accounts">
+            <i class="fas fa-users"></i>
+            <span>Accounts</span>
+        </button>
+        <button class="bottom-nav-item" data-page="expiring" title="Expiring">
+            <i class="fas fa-clock"></i>
+            <span>Expiring</span>
+            <span class="bottom-badge" id="bottomExpiringBadge">0</span>
+        </button>
+        <button class="bottom-nav-item" data-page="problems" title="Problems">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>Problems</span>
+            <span class="bottom-badge bottom-badge-warning" id="bottomProblemBadge">0</span>
+        </button>
+        <button class="bottom-nav-item" data-action="menu" title="More">
+            <i class="fas fa-ellipsis-h"></i>
+            <span>More</span>
+        </button>
+    </nav>
+
+    <!-- Floating Action Button (mobile) -->
+    <button class="fab" id="fabAddBtn" title="Add Account" aria-label="Add Account">
+        <i class="fas fa-plus"></i>
+    </button>
+
+    <!-- Bulk Actions Bar -->
+    <div class="bulk-bar" id="bulkActionsBar">
+        <span class="bulk-count"><strong id="bulkCount">0</strong> selected</span>
+        <div class="bulk-actions">
+            <button class="btn btn-sm btn-secondary" id="bulkCopyBtn" title="Copy emails">
+                <i class="fas fa-copy"></i>
+            </button>
+            <button class="btn btn-sm btn-secondary" id="bulkExportBtn" title="Export selected">
+                <i class="fas fa-download"></i>
+            </button>
+            <button class="btn btn-sm btn-danger" id="bulkDeleteBtn" title="Delete selected">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Mobile Search Overlay -->
+    <div class="mobile-search-overlay" id="mobileSearchOverlay">
+        <div class="mobile-search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" id="mobileSearch" placeholder="Search accounts, clients..." autocomplete="off">
+            <button class="btn btn-icon" id="mobileSearchClose" aria-label="Close search">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="mobile-search-hint">
+            <p id="mobileSearchMessage">Type to search across emails and clients</p>
+        </div>
+    </div>
+
+    <!-- Install Banner -->
+    <div class="install-banner" id="installBanner">
+        <div class="install-banner-icon">
+            <img src="icons/icon-192.png" alt="EmailVault Pro" width="44" height="44">
+        </div>
+        <div class="install-banner-content">
+            <strong>Install EmailVault Pro</strong>
+            <span>Get the app on your home screen. Works offline.</span>
+        </div>
+        <button class="btn btn-primary btn-sm" id="installBtnConfirm">
+            <i class="fas fa-download"></i> Install
+        </button>
+        <button class="install-banner-close" id="installBtnDismiss" aria-label="Dismiss">
+            &times;
+        </button>
+    </div>
+
+    <!-- Install Help Modal (iOS) -->
+    <div id="installHelpModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3><i class="fas fa-mobile-alt"></i> Install the App</h3>
+                <button class="modal-close" id="installHelpCancel">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="install-help-text">Tap the <strong>Share</strong> button in Safari, then choose <strong>Add to Home Screen</strong> and confirm.</p>
+                <div class="install-help-steps">
+                    <div class="install-help-step">
+                        <span class="step-num">1</span>
+                        <span>Open this site in <strong>Safari</strong></span>
+                    </div>
+                    <div class="install-help-step">
+                        <span class="step-num">2</span>
+                        <span>Tap <i class="fas fa-share-alt"></i> <strong>Share</strong></span>
+                    </div>
+                    <div class="install-help-step">
+                        <span class="step-num">3</span>
+                        <span>Choose <strong>Add to Home Screen</strong></span>
+                    </div>
+                    <div class="install-help-step">
+                        <span class="step-num">4</span>
+                        <span>Tap <strong>Add</strong> to install</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="installHelpOk">
+                    <i class="fas fa-check"></i> Got it
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modals -->
     <!-- Add/Edit Account Modal -->
     <div id="accountModal" class="modal">
@@ -596,6 +726,7 @@ client3@example.com,5</pre>
     <script src="js/ui.js"></script>
     <script src="js/export.js"></script>
     <script src="js/analytics.js"></script>
+    <script src="js/pwa.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

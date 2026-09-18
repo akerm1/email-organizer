@@ -33,6 +33,14 @@ function renderDashboard() {
     document.getElementById('expiringBadge').textContent = expiring;
     document.getElementById('problemBadge').textContent = window.accounts.filter(a => a.hasProblem).length;
     
+    // Update bottom nav badges (mobile)
+    const bottomExpiring = document.getElementById('bottomExpiringBadge');
+    const bottomProblem = document.getElementById('bottomProblemBadge');
+    if (bottomExpiring) bottomExpiring.textContent = expiring;
+    if (bottomProblem) bottomProblem.textContent = window.accounts.filter(a => a.hasProblem).length;
+    if (bottomExpiring) bottomExpiring.style.display = expiring > 0 ? 'flex' : 'none';
+    if (bottomProblem) bottomProblem.style.display = window.accounts.filter(a => a.hasProblem).length > 0 ? 'flex' : 'none';
+    
     // Render activity
     renderActivity();
 }
@@ -173,19 +181,19 @@ function renderAccountsTable(filteredAccounts = null) {
         
         return `
             <tr class="${isSelected ? 'selected' : ''} ${account.hasProblem ? 'problem-row' : ''}">
-                <td class="checkbox-col">
+                <td class="checkbox-col cell-check">
                     <input type="checkbox" class="account-select" 
                            data-id="${account.id}" 
                            ${isSelected ? 'checked' : ''}
                            onchange="toggleAccountSelect('${account.id}')">
                 </td>
-                <td><strong>${escapeHtml(account.client)}</strong></td>
-                <td>${escapeHtml(account.email)}</td>
-                <td>${formatDateDisplay(account.date)}</td>
-                <td>${account.replacementEmail ? escapeHtml(account.replacementEmail) : '—'}</td>
-                <td><span class="status-badge ${status}">${statusLabel}</span></td>
-                <td><span class="days-badge ${daysClass}">${daysLabel}</span></td>
-                <td>
+                <td class="cell-client"><strong>${escapeHtml(account.client)}</strong></td>
+                <td class="cell-email" data-label="Email">${escapeHtml(account.email)}</td>
+                <td class="cell-expiry" data-label="Expiry Day">${formatDateDisplay(account.date)}</td>
+                <td class="cell-replacement" data-label="Replacement">${account.replacementEmail ? escapeHtml(account.replacementEmail) : '—'}</td>
+                <td class="cell-status" data-label="Status"><span class="status-badge ${status}">${statusLabel}</span></td>
+                <td class="cell-days" data-label="Days Left"><span class="days-badge ${daysClass}">${daysLabel}</span></td>
+                <td class="cell-actions">
                     <div class="action-buttons">
                         <button class="btn btn-sm btn-ghost" onclick="editAccount('${account.id}')" title="Edit">
                             <i class="fas fa-edit"></i>
@@ -389,7 +397,9 @@ function deleteAccountConfirm(id) {
     document.getElementById('confirmMessage').textContent = 
         `Delete account ${account.email} for ${account.client}?`;
     document.getElementById('confirmModal').classList.add('active');
-    document.getElementById('confirmYes').dataset.id = id;
+    const yesBtn = document.getElementById('confirmYes');
+    yesBtn.dataset.id = account.id;
+    delete yesBtn.dataset.action;
 }
 
 // Export UI functions

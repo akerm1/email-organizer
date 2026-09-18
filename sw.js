@@ -1,0 +1,105 @@
+/* ============================================
+   EmailVault Pro - Service Worker
+   Offline-first app shell with runtime caching
+   ============================================ */
+
+const VERSION = '1.0.0';
+const CACHE_NAME = `emailvault-${VERSION}`;
+
+const APP_ASSETS = [
+  './index.html',
+  './icons/favicon.svg',
+  './manifest.json',
+  './css/style.css',
+  './css/dark-theme.css',
+  './css/animations.css',
+  './css/mobile.css',
+  './js/firebase-config.js',
+  './js/utils.js',
+  './js/notifications.js',
+  './js/ui.js',
+  './js/export.js',
+  './js/analytics.js',
+  './js/pwa.js',
+  './js/app.js',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-maskable-512.png'
+];
+
+function resolveUrl(path) {
+  return new URL(path, self.registration.scope).toString();
+}
+
+// Install: precache the app shell
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_ASSETS.map(resolveUrl)))
+      .then(() => self.skipWaiting())
+  );
+});
+
+// Activate: clean up old caches and take control
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
+  );
+});
+
+// Fetch: offline-first for same-origin, cache-first for everything else
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+
+  // Only handle GET requests
+  if (request.method !== 'GET') return;
+
+  // Navigation requests: network first, fall back to cached index
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(resolveUrl('./index.html'), copy));
+          return response;
+        })
+        .catch(() =>
+          caches.match(request).then((cached) =>
+            cached || caches.match(resolveUrl('./index.html'))
+          )
+        )
+    );
+    return;
+  }
+
+  // Cache-first for assets (app shell + CDN runtime)
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(request)
+        .then((response) => {
+          if (!response || response.status !== 200) return response;
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(() => {
+          // Opaque/CDN failure fallback to index for navigations only is handled above
+          if (request.destination === 'document') return caches.match(resolveUrl('./index.html'));
+          return cached;
+        });
+    })
+  );
+});
+
+// Skip waiting on new service worker message
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});

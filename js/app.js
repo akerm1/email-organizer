@@ -63,12 +63,22 @@ function setupEventListeners() {
     
     // Sidebar toggle (mobile)
     document.getElementById('sidebarToggle').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('open');
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebarBackdrop');
+        const open = sidebar.classList.toggle('open');
+        if (backdrop) backdrop.classList.toggle('show', open);
+    });
+    
+    // Sidebar backdrop closes the drawer
+    document.getElementById('sidebarBackdrop').addEventListener('click', () => {
+        document.getElementById('sidebar').classList.remove('open');
+        document.getElementById('sidebarBackdrop').classList.remove('show');
     });
     
     // Quick add button
     document.getElementById('quickAddBtn').addEventListener('click', openAddAccountModal);
     document.getElementById('addAccountBtn').addEventListener('click', openAddAccountModal);
+    document.getElementById('fabAddBtn').addEventListener('click', openAddAccountModal);
     
     // Account form
     document.getElementById('modalSave').addEventListener('click', saveAccountForm);
@@ -148,8 +158,11 @@ function setupEventListeners() {
     
     // Confirm modal
     document.getElementById('confirmYes').addEventListener('click', function() {
+        const mode = this.dataset.action;
         const id = this.dataset.id;
-        if (id) {
+        if (mode === 'bulk-delete') {
+            bulkDeleteSelected(true);
+        } else if (id) {
             deleteAccount(id);
         }
         document.getElementById('confirmModal').classList.remove('active');
@@ -157,6 +170,41 @@ function setupEventListeners() {
     document.getElementById('confirmNo').addEventListener('click', () => {
         document.getElementById('confirmModal').classList.remove('active');
     });
+    
+    // Bottom navigation (mobile)
+    document.querySelectorAll('.bottom-nav-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const page = this.dataset.page;
+            const action = this.dataset.action;
+            if (action === 'menu') {
+                document.getElementById('sidebar').classList.add('open');
+                document.getElementById('sidebarBackdrop').classList.add('show');
+                return;
+            }
+            if (page) navigateTo(page);
+        });
+    });
+    
+    // Mobile search overlay
+    document.getElementById('searchToggle').addEventListener('click', () => {
+        document.getElementById('mobileSearchOverlay').classList.add('active');
+        setTimeout(() => document.getElementById('mobileSearch').focus(), 150);
+    });
+    document.getElementById('mobileSearchClose').addEventListener('click', closeMobileSearch);
+    document.getElementById('mobileSearch').addEventListener('input', debounce((e) => {
+        const value = e.target.value.trim();
+        const msg = document.getElementById('mobileSearchMessage');
+        if (msg) {
+            msg.textContent = value ? 'Results shown in Accounts' : 'Type to search across emails and clients';
+        }
+        if (value) navigateTo('accounts');
+        handleSearch(value);
+    }, 250));
+    
+    // Bulk action bar
+    document.getElementById('bulkCopyBtn').addEventListener('click', bulkCopySelected);
+    document.getElementById('bulkExportBtn').addEventListener('click', bulkExportSelected);
+    document.getElementById('bulkDeleteBtn').addEventListener('click', bulkDeleteConfirm);
 }
 
 // Navigation
@@ -165,6 +213,15 @@ function navigateTo(page) {
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.toggle('active', item.dataset.page === page);
     });
+    
+    // Update bottom nav (mobile)
+    document.querySelectorAll('.bottom-nav-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.page === page);
+    });
+    
+    // Close mobile drawer & search when navigating
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarBackdrop').classList.remove('show');
     
     // Update pages
     document.querySelectorAll('.page-content').forEach(p => {
@@ -319,6 +376,81 @@ function handleSearch(query) {
     });
     
     renderAccountsTable(filtered);
+}
+
+// Close mobile search overlay
+function closeMobileSearch() {
+    const overlay = document.getElementById('mobileSearchOverlay');
+    if (overlay) overlay.classList.remove('active');
+    const input = document.getElementById('mobileSearch');
+    if (input) input.value = '';
+    const msg = document.getElementById('mobileSearchMessage');
+    if (msg) msg.textContent = 'Type to search across emails and clients';
+    renderAccountsTable();
+}
+
+// Bulk actions: get selected accounts
+function getSelectedAccounts() {
+    return window.accounts.filter(a => selectedAccounts.has(a.id));
+}
+
+// Copy all selected emails
+function bulkCopySelected() {
+    const emails = getSelectedAccounts().map(a => a.email);
+    if (emails.length === 0) return;
+    copyToClipboard(emails.join('\n'));
+}
+
+// Export selected accounts
+function bulkExportSelected() {
+    const selected = getSelectedAccounts();
+    if (selected.length === 0) return;
+    const choice = confirm(`Export ${selected.length} account(s) as:\n\nOK = CSV\nCancel = JSON`);
+    if (choice) {
+        exportToCSV(selected);
+    } else {
+        exportToJSON(selected);
+    }
+}
+
+// Confirm bulk delete
+function bulkDeleteConfirm() {
+    const count = selectedAccounts.size;
+    if (count === 0) return;
+    document.getElementById('confirmMessage').textContent = 
+        `Delete ${count} selected account(s)? This cannot be undone.`;
+    document.getElementById('confirmModal').classList.add('active');
+    document.getElementById('confirmYes').dataset.action = 'bulk-delete';
+    document.getElementById('confirmYes').dataset.id = '';
+}
+
+// Delete all selected accounts
+async function bulkDeleteSelected(run) {
+    if (!run) return;
+    
+    try {
+        const ids = Array.from(selectedAccounts);
+        await batchOperation(ids.map(id => ({
+            type: 'delete',
+            ref: db.collection('accounts').doc(id)
+        })));
+        
+        selectedAccounts.forEach(id => {
+            window.accounts = window.accounts.filter(a => a.id !== id);
+        });
+        selectedAccounts.clear();
+        window.clients = [...new Set(window.accounts.map(a => a.client))].filter(Boolean);
+        updateBulkBar();
+        showToast(`Deleted ${ids.length} accounts`, 'success');
+        renderDashboard();
+        renderAccountsTable();
+        renderExpiringCards();
+        renderProblemAccounts();
+        updateCharts();
+    } catch (error) {
+        showToast('Error deleting accounts', 'error');
+        console.error(error);
+    }
 }
 
 // Sort table

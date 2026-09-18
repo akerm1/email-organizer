@@ -1,0 +1,49 @@
+{
+  "name": "EmailVault Pro - Email Account Organizer",
+  "short_name": "EmailVault",
+  "description": "Professional email account management with smart expiry notifications. Track, organize, and get notified before accounts expire.",
+  "id": "emailvault-pro",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#f8fafc",
+  "theme_color": "#6366f1",
+  "lang": "en",
+  "categories": ["productivity", "business", "utilities"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add Account",
+      "short_name": "Add",
+      "url": "./index.html#add-account",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Expiring Soon",
+      "short_name": "Expiring",
+      "url": "./index.html#expiring",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
