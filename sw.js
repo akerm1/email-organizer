@@ -3,7 +3,7 @@
    Offline-first app shell with runtime caching
    ============================================ */
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const CACHE_NAME = `emailvault-${VERSION}`;
 
 const APP_ASSETS = [
@@ -21,6 +21,7 @@ const APP_ASSETS = [
   './js/export.js',
   './js/analytics.js',
   './js/pwa.js',
+  './js/settings.js',
   './js/app.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -51,12 +52,15 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: offline-first for same-origin, cache-first for everything else
+// Fetch: network-first same-origin (stays fresh), cache-first for CDN
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  // Only handle GET requests
+  // Only handle GET requests over http(s)
   if (request.method !== 'GET') return;
+
+  const url = new URL(request.url);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
 
   // Navigation requests: network first, fall back to cached index
   if (request.mode === 'navigate') {
@@ -76,7 +80,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for assets (app shell + CDN runtime)
+  // Same-origin assets (our CSS/JS): network first so updates show immediately,
+  // cached copy as fallback when offline
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (!response || response.status !== 200) return response;
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Cross-origin (CDN: fonts, Firebase, Chart.js): cache-first
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
@@ -88,11 +108,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           return response;
         })
-        .catch(() => {
-          // Opaque/CDN failure fallback to index for navigations only is handled above
-          if (request.destination === 'document') return caches.match(resolveUrl('./index.html'));
-          return cached;
-        });
+        .catch(() => cached);
     })
   );
 });

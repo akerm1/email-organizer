@@ -224,7 +224,7 @@ function toggleAccountSelect(id) {
         selectedAccounts.add(id);
     }
     updateBulkBar();
-    renderAccountsTable();
+    renderAccountsTable(getFilteredAccounts());
 }
 
 // Update bulk actions bar
@@ -375,17 +375,22 @@ function editAccount(id) {
     const account = window.accounts.find(a => a.id === id);
     if (!account) return;
     
+    setAddModalMode('single', false);
+    document.getElementById('accountModal').classList.remove('add-mode');
+    populateClientOptionsIfChanged();
     document.getElementById('accountModalTitle').textContent = 'Edit Account';
     document.getElementById('formClient').value = account.client;
     document.getElementById('formEmail').value = account.email;
     document.getElementById('formDay').value = extractDay(account.date) || '';
+    refreshDayPicker('formDay', 'formDayPicker');
     document.getElementById('formReplacement').value = account.replacementEmail || '';
     document.getElementById('formNotes').value = account.problemNote || '';
     document.getElementById('formHasProblem').checked = account.hasProblem;
     
     // Store ID for update
     document.getElementById('accountForm').dataset.editId = id;
-    document.getElementById('modalSave').textContent = 'Update Account';
+    document.getElementById('modalSave').innerHTML = '<i class="fas fa-edit"></i> Update Account';
+    document.getElementById('modalSave').disabled = false;
     document.getElementById('accountModal').classList.add('active');
 }
 

@@ -63,6 +63,8 @@ async function loadAccounts() {
             });
         });
         clients = [...new Set(accounts.map(a => a.client))].filter(Boolean);
+        window.accounts = accounts;
+        window.clients = clients;
         return accounts;
     } catch (error) {
         console.error('Error loading accounts:', error);

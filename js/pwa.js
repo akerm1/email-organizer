@@ -63,10 +63,9 @@ async function handleInstallClick() {
   openInstallHelp();
 }
 
-// Service worker registration
+// Service worker registration (re-registers so updates are picked up)
 async function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  if (navigator.serviceWorker.controller) return;
 
   try {
     await navigator.serviceWorker.register('./sw.js', { scope: './' });
