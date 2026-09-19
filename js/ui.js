@@ -32,6 +32,10 @@ function renderDashboard() {
     document.getElementById('accountBadge').textContent = total;
     document.getElementById('expiringBadge').textContent = expiring;
     document.getElementById('problemBadge').textContent = window.accounts.filter(a => a.hasProblem).length;
+
+    // Clients nav badge
+    const clientNavBadge = document.getElementById('clientNavBadge');
+    if (clientNavBadge) clientNavBadge.textContent = clients;
     
     // Update bottom nav badges (mobile)
     const bottomExpiring = document.getElementById('bottomExpiringBadge');
@@ -244,15 +248,25 @@ function updateBulkBar() {
 // Render expiring cards
 function renderExpiringCards() {
     const grid = document.getElementById('expiringGrid');
-    const settings = getNotificationSettings();
-    const expiring = getExpiringAccounts(settings);
-    
+    const windowDays = getNotificationSettings().daysBefore;
+    let expiring = getAccountsWithin(windowDays);
+
+    // Client filter
+    const cfEl = document.getElementById('expiringClientFilter');
+    const cf = cfEl ? cfEl.value : 'all';
+    if (cf !== 'all') expiring = expiring.filter(a => a.client === cf);
+
+    // Status filter
+    const sfEl = document.getElementById('expiringStatusFilter');
+    const sf = sfEl ? sfEl.value : 'all';
+    if (sf !== 'all') expiring = expiring.filter(a => a.status === sf);
+
     if (expiring.length === 0) {
         grid.innerHTML = `
             <div class="empty-state" style="grid-column: 1/-1;">
                 <i class="fas fa-check-circle" style="font-size: 48px; color: var(--success);"></i>
                 <h3>All Clear!</h3>
-                <p>No accounts are expiring within the selected timeframe.</p>
+                <p>No accounts match the current filters in this timeframe.</p>
             </div>
         `;
         return;
@@ -308,8 +322,24 @@ function renderExpiringCards() {
 // Render problem accounts
 function renderProblemAccounts() {
     const grid = document.getElementById('problemsGrid');
-    const problems = window.accounts.filter(a => a.hasProblem);
-    
+    let problems = window.accounts.filter(a => a.hasProblem);
+
+    // Client filter
+    const cfEl = document.getElementById('problemClientFilter');
+    const cf = cfEl ? cfEl.value : 'all';
+    if (cf !== 'all') problems = problems.filter(a => a.client === cf);
+
+    // Search (email or problem note)
+    const searchEl = document.getElementById('problemSearch');
+    const query = (searchEl ? searchEl.value : '').trim().toLowerCase();
+    if (query) {
+        problems = problems.filter(a =>
+            (a.email || '').toLowerCase().includes(query) ||
+            (a.problemNote || '').toLowerCase().includes(query) ||
+            (a.client || '').toLowerCase().includes(query)
+        );
+    }
+
     if (problems.length === 0) {
         grid.innerHTML = `
             <div class="empty-state" style="grid-column: 1/-1;">

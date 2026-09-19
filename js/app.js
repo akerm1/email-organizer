@@ -7,6 +7,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         // Initialize Firebase
         await initFirebase();
         await loadAccounts();
+        await loadClients();
+        lastClientOptionsKey = '';
+
+        // Populate client dropdowns (filter, datalist, bulk) from loaded data
+        populateClientOptions(window.clients || []);
+        lastClientOptionsKey = (window.clients || []).join('\u0001');
         
         // Hide loading screen
         document.getElementById('loadingScreen').classList.add('hidden');
@@ -17,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         renderAccountsTable();
         renderExpiringCards();
         renderProblemAccounts();
+        renderClients();
         initCharts();
         updateBulkBar();
         updateSettingsStatus();
@@ -80,6 +87,15 @@ function setupEventListeners() {
     document.getElementById('quickAddBtn').addEventListener('click', openAddAccountModal);
     document.getElementById('addAccountBtn').addEventListener('click', openAddAccountModal);
     document.getElementById('fabAddBtn').addEventListener('click', openAddAccountModal);
+
+    // Clickable dashboard stat cards -> navigate
+    document.querySelectorAll('.stat-card[data-page]').forEach(card => {
+        const go = () => navigateTo(card.dataset.page);
+        card.addEventListener('click', go);
+        card.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+        });
+    });
     
     // Account form
     document.getElementById('modalSave').addEventListener('click', saveAccountForm);
@@ -155,13 +171,24 @@ function setupEventListeners() {
     // Resolve all problems
     document.getElementById('resolveAllBtn').addEventListener('click', resolveAllProblems);
     
-    // Expiry range
+    // Expiry range presets
     document.getElementById('expiryRange').addEventListener('change', function() {
         const settings = getNotificationSettings();
-        settings.daysBefore = parseInt(this.value);
+        settings.daysBefore = parseInt(this.value, 10);
         saveNotificationSettings(settings);
         renderExpiringCards();
     });
+
+    // Expiring page filters
+    document.getElementById('expiringClientFilter').addEventListener('change', renderExpiringCards);
+    document.getElementById('expiringStatusFilter').addEventListener('change', renderExpiringCards);
+
+    // Problems page filters
+    document.getElementById('problemSearch').addEventListener('input', debounce(renderProblemAccounts, 250));
+    document.getElementById('problemClientFilter').addEventListener('change', renderProblemAccounts);
+
+    // Clients page search
+    document.getElementById('clientSearch').addEventListener('input', debounce(renderClients, 250));
     
     // Send manual notifications
     document.getElementById('sendManualNotify').addEventListener('click', async function() {
@@ -283,6 +310,7 @@ function navigateTo(page) {
     const titles = {
         dashboard: ['Dashboard', 'Overview of your email accounts'],
         accounts: ['Accounts', 'Manage all your email accounts'],
+        clients: ['Clients', 'Manage your clients'],
         expiring: ['Expiring', 'Accounts that need attention'],
         problems: ['Problems', 'Accounts with issues'],
         analytics: ['Analytics', 'Insights and statistics'],
@@ -298,6 +326,7 @@ function navigateTo(page) {
     // Refresh data if needed
     if (page === 'dashboard') renderDashboard();
     if (page === 'accounts') renderAccountsTable();
+    if (page === 'clients') renderClients();
     if (page === 'expiring') renderExpiringCards();
     if (page === 'problems') renderProblemAccounts();
     if (page === 'analytics') updateCharts();
@@ -316,8 +345,8 @@ function toggleTheme() {
 // Add modal mode state
 let addModalMode = 'single';
 
-// Open add account modal (single mode)
-function openAddAccountModal() {
+// Open add account modal (single mode), optionally pre-filled with a client name
+function openAddAccountModal(clientName = '') {
     setAddModalMode('single');
     document.getElementById('accountModal').classList.add('add-mode');
     document.getElementById('accountModalTitle').textContent = 'Add Account';
@@ -327,6 +356,9 @@ function openAddAccountModal() {
     const today = new Date().getDate();
     document.getElementById('formDay').value = today;
     refreshDayPicker('formDay', 'formDayPicker');
+    if (clientName) {
+        document.getElementById('formClient').value = clientName;
+    }
     document.getElementById('accountModal').classList.add('active');
 }
 
@@ -386,7 +418,7 @@ function refreshDayPicker(inputId, pickerId) {
 // Populate client options (datalist, bulk select, client filter) once per data change
 let lastClientOptionsKey = '';
 function populateClientOptionsIfChanged() {
-    const clients = [...new Set(window.accounts.map(a => a.client))].filter(Boolean).sort();
+    const clients = (window.clients && window.clients.length ? window.clients : []);
     const key = clients.join('\u0001');
     if (key === lastClientOptionsKey) return;
     lastClientOptionsKey = key;
@@ -411,18 +443,19 @@ function populateClientOptions(clients) {
         if ([...sel.options].some(o => o.value === current)) sel.value = current;
     }
     
-    const cf = document.getElementById('clientFilter');
-    if (cf) {
-        const current = cf.value;
-        cf.innerHTML = '<option value="all">All Clients</option>';
+    ['clientFilter', 'expiringClientFilter', 'problemClientFilter'].forEach(selectId => {
+        const el = document.getElementById(selectId);
+        if (!el) return;
+        const current = el.value;
+        el.innerHTML = '<option value="all">All Clients</option>';
         clients.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c;
             opt.textContent = c;
-            cf.appendChild(opt);
+            el.appendChild(opt);
         });
-        if (current !== 'all' && clients.includes(current)) cf.value = current;
-    }
+        if (current !== 'all' && clients.includes(current)) el.value = current;
+    });
 }
 
 // Parse a single bulk line into { email, day, error? }
@@ -534,8 +567,9 @@ async function saveBulkAccounts() {
             const id = await saveAccount(data);
             window.accounts.push({ id, ...data });
         }
-        window.clients = [...new Set(window.accounts.map(a => a.client))].filter(Boolean);
+        syncClients();
         lastClientOptionsKey = '';
+        populateClientOptionsIfChanged();
         
         const errors = rows.length - valid.length;
         showToast(
@@ -548,6 +582,7 @@ async function saveBulkAccounts() {
         renderAccountsTable();
         renderExpiringCards();
         renderProblemAccounts();
+        renderClients();
         updateCharts();
     } catch (error) {
         showToast('Error adding accounts', 'error');
@@ -613,6 +648,7 @@ async function resolveAllProblems() {
         renderAccountsTable();
         renderExpiringCards();
         renderProblemAccounts();
+        renderClients();
         updateCharts();
     } catch (error) {
         showToast('Error resolving problems', 'error');
@@ -676,8 +712,9 @@ async function saveAccountForm() {
             // Create new
             const newId = await saveAccount(data);
             window.accounts.push({ id: newId, ...data });
-            window.clients = [...new Set(window.accounts.map(a => a.client))].filter(Boolean);
+            syncClients();
             lastClientOptionsKey = '';
+            populateClientOptionsIfChanged();
             showToast('Account added!', 'success');
         }
         
@@ -686,6 +723,7 @@ async function saveAccountForm() {
         renderAccountsTable();
         renderExpiringCards();
         renderProblemAccounts();
+        renderClients();
         updateCharts();
         
     } catch (error) {
@@ -700,12 +738,13 @@ async function deleteAccount(id) {
         await db.collection('accounts').doc(id).delete();
         window.accounts = window.accounts.filter(a => a.id !== id);
         selectedAccounts.delete(id);
-        window.clients = [...new Set(window.accounts.map(a => a.client))].filter(Boolean);
+        syncClients();
         showToast('Account deleted', 'success');
         renderDashboard();
         renderAccountsTable();
         renderExpiringCards();
         renderProblemAccounts();
+        renderClients();
         updateCharts();
     } catch (error) {
         showToast('Error deleting account', 'error');
@@ -793,13 +832,14 @@ async function bulkDeleteSelected(run) {
             window.accounts = window.accounts.filter(a => a.id !== id);
         });
         selectedAccounts.clear();
-        window.clients = [...new Set(window.accounts.map(a => a.client))].filter(Boolean);
+        syncClients();
         updateBulkBar();
         showToast(`Deleted ${ids.length} accounts`, 'success');
         renderDashboard();
         renderAccountsTable();
         renderExpiringCards();
         renderProblemAccounts();
+        renderClients();
         updateCharts();
     } catch (error) {
         showToast('Error deleting accounts', 'error');

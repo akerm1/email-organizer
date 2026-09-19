@@ -31,6 +31,24 @@ function saveNotificationSettings(settings) {
     localStorage.setItem(NOTIFICATION_KEY, JSON.stringify(settings));
 }
 
+// Accounts within N days of expiring (includes already-expired accounts)
+function getAccountsWithin(days) {
+    const results = [];
+    window.accounts.forEach(account => {
+        if (!account.date) return;
+        const d = getDaysUntilExpiry(account.date);
+        if (d === null) return;
+        if (d <= days) {
+            results.push({
+                ...account,
+                daysUntilExpiry: d,
+                status: d < 0 ? 'expired' : d === 0 ? 'today' : 'upcoming'
+            });
+        }
+    });
+    return results;
+}
+
 // Get expiring accounts based on settings
 function getExpiringAccounts(settings = null) {
     if (!settings) settings = getNotificationSettings();
@@ -219,6 +237,7 @@ async function testTelegramConnection(token, chatId) {
 window.getNotificationSettings = getNotificationSettings;
 window.saveNotificationSettings = saveNotificationSettings;
 window.getExpiringAccounts = getExpiringAccounts;
+window.getAccountsWithin = getAccountsWithin;
 window.checkAndNotify = checkAndNotify;
 window.testTelegramConnection = testTelegramConnection;
 window.sendBrowserNotification = sendBrowserNotification;

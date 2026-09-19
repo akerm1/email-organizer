@@ -51,6 +51,34 @@ button {
     font-size: 14px;
 }
 
+.filter-input {
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    min-width: 180px;
+}
+
+.filter-input:focus {
+    outline: none;
+    border-color: var(--primary-400);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.filter-input::placeholder {
+    color: var(--text-muted);
+}
+
+.problems-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
 .expiring-header {
     display: flex;
     justify-content: space-between;
@@ -299,6 +327,26 @@ button {
 
 /* Phones */
 @media (max-width: 768px) {
+    .filter-input,
+    .filter-select,
+    .date-range select {
+        min-width: 0;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .date-range {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .problems-toolbar {
+        width: 100%;
+    }
+
+    .problems-toolbar .filter-input {
+        flex: 1 1 100%;
+    }
     /* Prevent iOS zoom on focus */
     .form-group input,
     .form-group select,
