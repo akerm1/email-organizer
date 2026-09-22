@@ -23,10 +23,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     
     <!-- Styles -->
-    <link rel="stylesheet" href="css/style.css?v=1.1.0">
-    <link rel="stylesheet" href="css/dark-theme.css?v=1.1.0">
-    <link rel="stylesheet" href="css/animations.css?v=1.1.0">
-    <link rel="stylesheet" href="css/mobile.css?v=1.1.0">
+    <link rel="stylesheet" href="css/style.css?v=2.0.0">
+    <link rel="stylesheet" href="css/dark-theme.css?v=2.0.0">
+    <link rel="stylesheet" href="css/animations.css?v=2.0.0">
+    <link rel="stylesheet" href="css/mobile.css?v=2.0.0">
 </head>
 <body>
     <!-- Loading Screen -->
@@ -362,6 +362,9 @@
                         <button class="settings-tab" data-tab="notifications">
                             <i class="fas fa-bell"></i> Notifications
                         </button>
+                        <button class="settings-tab" data-tab="phone">
+                            <i class="fas fa-mobile-alt"></i> Phone
+                        </button>
                         <button class="settings-tab" data-tab="telegram">
                             <i class="fab fa-telegram"></i> Telegram
                         </button>
@@ -457,6 +460,23 @@
             <i class="fas fa-download"></i> Install
         </button>
         <button class="install-banner-close" id="installBtnDismiss" aria-label="Dismiss">
+            &times;
+        </button>
+    </div>
+
+    <!-- Update Banner (new version available) -->
+    <div class="update-banner" id="updateBanner" role="status">
+        <div class="update-banner-icon">
+            <i class="fas fa-arrow-alt-circle-down"></i>
+        </div>
+        <div class="update-banner-content">
+            <strong>New version available</strong>
+            <span id="updateBannerText">A new version of EmailVault Pro is ready.</span>
+        </div>
+        <button class="btn btn-primary btn-sm" id="updateBtnConfirm">
+            <i class="fas fa-sync-alt"></i> Update
+        </button>
+        <button class="install-banner-close" id="updateBtnDismiss" aria-label="Dismiss">
             &times;
         </button>
     </div>
@@ -727,15 +747,15 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
     <!-- Application Scripts -->
-    <script src="js/firebase-config.js?v=1.1.0"></script>
-    <script src="js/utils.js?v=1.1.0"></script>
-    <script src="js/notifications.js?v=1.1.0"></script>
-    <script src="js/ui.js?v=1.1.0"></script>
-    <script src="js/export.js?v=1.1.0"></script>
-    <script src="js/analytics.js?v=1.1.0"></script>
-    <script src="js/pwa.js?v=1.1.0"></script>
-    <script src="js/settings.js?v=1.1.0"></script>
-    <script src="js/clients.js?v=1.1.0"></script>
-    <script src="js/app.js?v=1.1.0"></script>
+    <script src="js/firebase-config.js?v=2.0.0"></script>
+    <script src="js/utils.js?v=2.0.0"></script>
+    <script src="js/notifications.js?v=2.0.0"></script>
+    <script src="js/ui.js?v=2.0.0"></script>
+    <script src="js/export.js?v=2.0.0"></script>
+    <script src="js/analytics.js?v=2.0.0"></script>
+    <script src="js/pwa.js?v=2.0.0"></script>
+    <script src="js/settings.js?v=2.0.0"></script>
+    <script src="js/clients.js?v=2.0.0"></script>
+    <script src="js/app.js?v=2.0.0"></script>
 </body>
 </html>

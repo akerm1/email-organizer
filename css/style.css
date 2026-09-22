@@ -1962,6 +1962,61 @@ body {
 }
 
 /* ============================================
+   UPDATE BANNER (in-app "new version" prompt)
+   ============================================ */
+.update-banner {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    z-index: 980;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--primary-400);
+    border-radius: 14px;
+    box-shadow: var(--shadow-xl);
+    transform: translateY(-180%);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.update-banner.visible {
+    transform: translateY(0);
+}
+
+.update-banner-icon {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: var(--primary-500);
+    color: #fff;
+    font-size: 18px;
+}
+
+.update-banner-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.update-banner-content strong {
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.update-banner-content span {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ============================================
    STATUS CHIPS
    ============================================ */
 .chip-row {

@@ -3,7 +3,7 @@
    Offline-first app shell with runtime caching
    ============================================ */
 
-const VERSION = '1.1.0';
+const VERSION = '2.0.0';
 const CACHE_NAME = `emailvault-${VERSION}`;
 
 const APP_ASSETS = [
@@ -22,6 +22,7 @@ const APP_ASSETS = [
   './js/analytics.js',
   './js/pwa.js',
   './js/settings.js',
+  './js/clients.js',
   './js/app.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -118,4 +119,47 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+// ============================================
+// WEB PUSH - phone notifications (daily digest)
+// ============================================
+
+// Show the notification pushed from the server
+self.addEventListener('push', (event) => {
+  let data = { title: 'EmailVault Pro', body: 'Check your expiring accounts', url: './' };
+  try {
+    if (event.data) data = Object.assign(data, event.data.json());
+  } catch (e) { /* keep defaults */ }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      data: { url: data.url || './' },
+      tag: 'emailvault-daily'
+    })
+  );
+});
+
+// Open the app when the notification is tapped
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = new URL(
+    (event.notification.data && event.notification.data.url) || './',
+    self.location.origin
+  ).toString();
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if ('focus' in client) {
+          client.navigate(target);
+          return client.focus();
+        }
+      }
+      return clients.openWindow(target);
+    })
+  );
 });

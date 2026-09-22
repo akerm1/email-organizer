@@ -9,7 +9,8 @@
     "dev": "npx serve ."
   },
   "dependencies": {
-    "firebase-admin": "^12.0.0"
+    "firebase-admin": "^12.0.0",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "serve": "^14.0.0"

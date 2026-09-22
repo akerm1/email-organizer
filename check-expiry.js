@@ -3,11 +3,20 @@
 // ============================================
 
 const admin = require('firebase-admin');
+const webpush = require('web-push');
 
 // ============================================
 // CONFIGURATION - Notification at 9:46 AM Algeria time
 // ============================================
 const ALGERIA_OFFSET = 1; // UTC+1 (Algeria time)
+
+// Web Push (phone notifications) - keys come from GitHub Actions secrets
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@emailvault.app';
+if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+}
 
 // Notification Settings
 const NOTIFY_DAYS_BEFORE = 30; // Send notification for emails expiring within X days
@@ -207,6 +216,83 @@ async function sendNotificationMessage(accounts, type) {
 }
 
 // ============================================
+// WEB PUSH - phone notifications
+// ============================================
+
+// Send a push to every phone that enabled it in the app, once per day
+async function sendPushToPhones(expired, today, upcoming, todayKey) {
+    if (!VAPID_PUBLIC_KEY || !VAPID_PRIVATE_KEY) {
+        console.warn('⚠️ VAPID keys not set, skipping phone push');
+        return;
+    }
+
+    try {
+        const pushed = await db.collection('pushLog').doc('daily').get();
+        if (pushed.exists && pushed.data().lastKey === todayKey) {
+            console.log('📲 Phone push already sent today, skipping');
+            return;
+        }
+    } catch (e) {
+        console.warn('⚠️ Could not read push log:', e.message);
+    }
+
+    // Read every stored push subscription
+    const subs = [];
+    try {
+        const snap = await db.collection('pushSubscriptions').get();
+        snap.forEach(doc => subs.push({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+        console.error('❌ Could not read push subscriptions:', e.message);
+        return;
+    }
+    if (subs.length === 0) {
+        console.log('📲 No phones have push enabled yet');
+        return;
+    }
+
+    const total = expired.length + today.length + upcoming.length;
+    const payload = {
+        title: `📧 ${total} email account(s) need attention`,
+        body: `🔴 ${expired.length} expired · 🟡 ${today.length} today · 🟠 ${upcoming.length} expiring`,
+        url: process.env.APP_URL || ''
+    };
+    const message = JSON.stringify(payload);
+
+    let sent = 0;
+    for (const sub of subs) {
+        const subData = {
+            endpoint: sub.endpoint,
+            keys: {
+                p256dh: (sub.keys && sub.keys.p256dh) || sub.p256dh || '',
+                auth: (sub.keys && sub.keys.auth) || sub.auth || ''
+            }
+        };
+        try {
+            await webpush.sendNotification(subData, message);
+            sent++;
+            console.log(`📲 Push sent to ${sub.device || sub.id}`);
+        } catch (error) {
+            console.error(`📲 Push failed for ${sub.device || sub.id}: ${error.message}`);
+            // 404/410 = subscription gone, clean it up
+            if (error.statusCode === 404 || error.statusCode === 410) {
+                try { await db.collection('pushSubscriptions').doc(sub.id).delete(); } catch (e) { /* ignore */ }
+            }
+        }
+    }
+
+    // Mark today as done so the 10:46/11:46 reruns don't duplicate
+    try {
+        await db.collection('pushLog').doc('daily').set({
+            lastKey: todayKey,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+    } catch (e) {
+        console.warn('⚠️ Could not mark push sent:', e.message);
+    }
+    console.log(`📲 Phone pushes sent: ${sent}/${subs.length}`);
+}
+
+// ============================================
 // MAIN CHECK FUNCTION - 9:46 AM Algeria time
 // ============================================
 async function checkAndNotify() {
@@ -334,6 +420,11 @@ async function checkAndNotify() {
             sentCount++;
         }
         console.log(`✅ Sent ${upcoming.length} upcoming notifications`);
+    }
+    
+    // Send the phone push (deduplicated per day) whenever something needed attention
+    if (sentCount > 0) {
+        await sendPushToPhones(expired, today, upcoming, todayKey);
     }
     
     // Send "all clear" message if no notifications sent

@@ -175,6 +175,9 @@ function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
 }
 
+// App version (mirrors sw.js VERSION and the Settings "Version" row)
+const APP_VERSION = '2.0.0';
+
 // ============================================
 // ACCOUNT STATUS HELPERS
 // ============================================
@@ -261,6 +264,7 @@ window.showToast = showToast;
 window.debounce = debounce;
 window.timeAgo = timeAgo;
 window.generateId = generateId;
+window.APP_VERSION = APP_VERSION;
 window.statusOfAccount = statusOfAccount;
 window.expiryStatusOnly = expiryStatusOnly;
 window.accountMatchesQuery = accountMatchesQuery;

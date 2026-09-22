@@ -16,9 +16,27 @@ function renderSettings() {
             <div class="setting-item">
                 <div class="setting-info">
                     <label>Version</label>
-                    <p>2.0.0</p>
+                    <p id="settingsVersion">${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''}</p>
                 </div>
             </div>
+
+            <div class="setting-item">
+                <div class="setting-info">
+                    <label>App Update</label>
+                    <p id="updateStatusText">Up to date</p>
+                </div>
+            </div>
+            <div class="settings-actions" style="margin-top: 0;">
+                <button class="btn btn-secondary btn-sm" id="checkForUpdatesBtn">
+                    <i class="fas fa-search"></i> Check for Updates
+                </button>
+                <button class="btn btn-primary btn-sm" id="applyUpdateBtn" disabled>
+                    <i class="fas fa-sync-alt"></i> Update Now
+                </button>
+            </div>
+            <p style="color: var(--text-muted); font-size: 12px; margin-top: 8px;">
+                The app updates itself in place — your data stays, no reinstall needed.
+            </p>
             <div class="setting-item">
                 <div class="setting-info">
                     <label>Accounts under management</label>
@@ -39,6 +57,28 @@ function renderSettings() {
                 </div>
                 <button class="btn btn-primary" id="openNotifSettings">
                     <i class="fas fa-bell"></i> Configure
+                </button>
+            </div>
+        </div>
+
+        <div class="settings-panel" id="settings-panel-phone" style="display:none;">
+            <h3>Phone Notifications</h3>
+            <p style="color: var(--text-secondary); margin-top: 8px;">
+                Get the daily 9:46 AM Algeria alert as a real system notification on this
+                phone, even when the app is closed.
+            </p>
+            <div class="setting-item">
+                <div class="setting-info">
+                    <label>Status</label>
+                    <p id="pushStatusText">Checking…</p>
+                </div>
+            </div>
+            <div class="settings-actions" style="margin-top: 0;">
+                <button class="btn btn-primary btn-sm" id="enablePushBtn" style="display:none;">
+                    <i class="fas fa-bell"></i> Enable phone notifications
+                </button>
+                <button class="btn btn-secondary btn-sm" id="disablePushBtn" style="display:none;">
+                    <i class="fas fa-bell-slash"></i> Disable
                 </button>
             </div>
         </div>
@@ -119,6 +159,26 @@ function bindSettings() {
     document.getElementById('backupCsv').addEventListener('click', () => exportToCSV());
     document.getElementById('backupExcel').addEventListener('click', () => exportToExcel());
     document.getElementById('backupJson').addEventListener('click', () => exportToJSON());
+
+    const checkBtn = document.getElementById('checkForUpdatesBtn');
+    if (checkBtn) checkBtn.addEventListener('click', () => {
+        checkBtn.disabled = true;
+        const label = checkBtn.innerHTML;
+        checkBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+        checkForUpdates().finally(() => {
+            checkBtn.disabled = false;
+            checkBtn.innerHTML = label;
+        });
+    });
+    const applyBtn = document.getElementById('applyUpdateBtn');
+    if (applyBtn) applyBtn.addEventListener('click', applyUpdate);
+    if (typeof updateUpdateView === 'function') updateUpdateView();
+
+    const enablePush = document.getElementById('enablePushBtn');
+    if (enablePush) enablePush.addEventListener('click', requestPushPermission);
+    const disablePush = document.getElementById('disablePushBtn');
+    if (disablePush) disablePush.addEventListener('click', disablePushNotifications);
+    if (typeof updatePushView === 'function') updatePushView();
 
     updateSettingsStatus();
 }
