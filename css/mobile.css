@@ -803,3 +803,76 @@ button {
         gap: 8px;
     }
 }
+
+/* ============================================
+   CLIENTS HOME / GROUPED LISTS (mobile)
+   ============================================ */
+@media (max-width: 768px) {
+    /* Keep the home search bar visible on phones */
+    .search-container.home-search {
+        display: flex;
+        flex: 1;
+    }
+
+    .home-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .home-toolbar .btn {
+        flex-shrink: 0;
+    }
+
+    /* Horizontal-scrolling status chips */
+    .chip-row {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        margin-left: -16px;
+        margin-right: -16px;
+        padding: 0 16px 6px;
+        padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+
+    .chip-row::-webkit-scrollbar {
+        display: none;
+    }
+
+    .chip {
+        flex-shrink: 0;
+        min-height: 44px;
+    }
+
+    .group-header {
+        padding: 12px;
+    }
+
+    .email-card {
+        padding: 14px;
+    }
+
+    .email-card-check input[type="checkbox"],
+    .group-select input[type="checkbox"],
+    .select-all-label input[type="checkbox"] {
+        width: 22px;
+        height: 22px;
+    }
+
+    .client-detail-header {
+        flex-wrap: wrap;
+    }
+
+    .btn-icon {
+        width: 44px;
+        height: 44px;
+    }
+
+    .select-all-label {
+        font-size: 15px;
+    }
+
+    .client-detail-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}

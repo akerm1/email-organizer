@@ -1821,3 +1821,446 @@ body {
         font-size: 22px;
     }
 }
+
+/* ============================================
+   CLIENTS HOME
+   ============================================ */
+.clients-home {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 1100px;
+}
+
+.home-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.home-search {
+    flex: 1;
+    min-width: 0;
+}
+
+.home-search .search-input {
+    flex: 1;
+    width: auto;
+    font-size: 16px;
+}
+
+.stats-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
+.stat-pill strong {
+    font-size: 16px;
+    color: var(--text-primary);
+}
+
+.stat-pill.primary { color: var(--primary-600); }
+.stat-pill.primary strong { color: var(--primary-600); }
+.stat-pill.orange { color: var(--warning); }
+.stat-pill.orange strong { color: var(--warning); }
+.stat-pill.red { color: var(--danger); }
+.stat-pill.red strong { color: var(--danger); }
+
+.count-label {
+    font-weight: 400;
+    color: var(--text-muted);
+}
+
+/* Home client cards become tappable */
+.home-client-card {
+    cursor: pointer;
+}
+
+.home-client-card:hover,
+.home-client-card:focus-visible {
+    border-color: var(--primary-400);
+    box-shadow: var(--shadow-md);
+    outline: none;
+}
+
+/* ============================================
+   NOTIFICATION BADGES (red/orange counts)
+   ============================================ */
+.notif-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.notif-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+}
+
+.notif-badge.red {
+    background: var(--danger);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+}
+
+.notif-badge.orange {
+    background: var(--warning);
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.18);
+}
+
+.mini-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.mini-badge.danger {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.mini-badge.warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.mini-badge.problem {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.badge-row {
+    display: inline-flex;
+    gap: 4px;
+    margin-top: 2px;
+}
+
+/* ============================================
+   STATUS CHIPS
+   ============================================ */
+.chip-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    min-height: 40px;
+}
+
+.chip:active {
+    transform: scale(0.96);
+}
+
+.chip.active {
+    background: var(--primary-500);
+    border-color: var(--primary-500);
+    color: #fff;
+}
+
+.chip.chip-danger.active {
+    background: var(--danger);
+    border-color: var(--danger);
+}
+
+.chip.chip-warning.active {
+    background: var(--warning);
+    border-color: var(--warning);
+}
+
+.chip.chip-ok.active {
+    background: var(--success);
+    border-color: var(--success);
+}
+
+.chip.chip-problem.active {
+    background: #991b1b;
+    border-color: #991b1b;
+}
+
+/* ============================================
+   GROUPED LISTS + SELECT ALL
+   ============================================ */
+.list-global-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.select-all-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    padding: 6px 0;
+}
+
+.select-all-label input[type="checkbox"],
+.group-select input[type="checkbox"],
+.email-card-check input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--primary-500);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.account-group {
+    margin-bottom: 20px;
+}
+
+.group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+    border-bottom: none;
+}
+
+.group-select {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    flex: 1;
+    min-width: 0;
+    padding: 4px 0;
+}
+
+.group-title {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.group-title strong {
+    font-size: 15px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.group-counts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.group-card-list {
+    border: 1px solid var(--border-color);
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    background: var(--bg-primary);
+    overflow: hidden;
+}
+
+/* ============================================
+   EMAIL CARDS
+   ============================================ */
+.email-card {
+    display: flex;
+    gap: 12px;
+    padding: 12px 14px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.email-card:last-child {
+    border-bottom: none;
+}
+
+.email-card.selected {
+    background: var(--bg-active);
+    box-shadow: inset 3px 0 0 var(--primary-500);
+}
+
+.email-card-check {
+    padding-top: 2px;
+    flex-shrink: 0;
+}
+
+.email-card-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.email-card-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.email-card-email {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text-primary);
+    word-break: break-all;
+    min-width: 0;
+}
+
+.email-card-replacement {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    word-break: break-all;
+}
+
+.email-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.email-card-client {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.email-card-note {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 6px;
+    background: var(--bg-primary);
+    padding: 6px 8px;
+    border-radius: 6px;
+}
+
+.email-card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.email-card-actions .btn {
+    padding: 8px 10px;
+    min-height: 36px;
+}
+
+/* Today status badge */
+.status-badge.today {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.status-badge.today::before {
+    background: #991b1b;
+}
+
+/* Make list containers block-level (cards not CSS grid) */
+#expiringGrid,
+#problemsGrid,
+#clientDetailList {
+    display: block;
+}
+
+/* ============================================
+   CLIENT DETAIL PAGE
+   ============================================ */
+.client-detail-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.client-detail-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.client-detail-title h2 {
+    font-size: 18px;
+    margin: 0 0 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.client-detail-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.client-detail-badge {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.client-detail-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.btn-icon {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.btn-icon.btn-danger {
+    color: var(--danger);
+}

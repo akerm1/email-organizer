@@ -60,19 +60,14 @@
 
             <nav class="sidebar-nav">
                 <a href="#" class="nav-item active" data-page="dashboard">
-                    <i class="fas fa-th-large"></i>
-                    <span>Dashboard</span>
+                    <i class="fas fa-building"></i>
+                    <span>Clients</span>
                     <span class="badge" id="totalBadge">0</span>
                 </a>
                 <a href="#" class="nav-item" data-page="accounts">
-                    <i class="fas fa-users"></i>
-                    <span>Accounts</span>
+                    <i class="fas fa-envelope"></i>
+                    <span>All Emails</span>
                     <span class="badge" id="accountBadge">0</span>
-                </a>
-                <a href="#" class="nav-item" data-page="clients">
-                    <i class="fas fa-building"></i>
-                    <span>Clients</span>
-                    <span class="badge" id="clientNavBadge">0</span>
                 </a>
                 <a href="#" class="nav-item" data-page="expiring">
                     <i class="fas fa-clock"></i>
@@ -140,97 +135,32 @@
                 </div>
             </header>
 
-            <!-- Dashboard Page -->
+            <!-- Clients Home Page -->
             <div id="page-dashboard" class="page-content active">
-                <!-- Stats Grid -->
-                <div class="stats-grid" id="statsGrid">
-                    <div class="stat-card stat-card-primary" data-page="accounts" role="button" tabindex="0" title="View all accounts">
-                        <div class="stat-icon"><i class="fas fa-envelope"></i></div>
-                        <div class="stat-info">
-                            <span class="stat-number" id="statTotal">0</span>
-                            <span class="stat-label">Total Accounts</span>
+                <div class="clients-home">
+                    <div class="home-toolbar">
+                        <div class="search-container home-search">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="homeSearch" class="search-input" placeholder="Search client, email or expiry day..." autocomplete="off">
                         </div>
-                        <div class="stat-change positive">
-                            <i class="fas fa-arrow-up"></i> 12%
-                        </div>
+                        <button class="btn btn-secondary btn-sm" id="homeSelectAllBtn" title="Select all shown">
+                            <i class="fas fa-check-double"></i> Select
+                        </button>
                     </div>
-                    <div class="stat-card stat-card-warning" data-page="expiring" role="button" tabindex="0" title="View expiring accounts">
-                        <div class="stat-icon"><i class="fas fa-clock"></i></div>
-                        <div class="stat-info">
-                            <span class="stat-number" id="statExpiring">0</span>
-                            <span class="stat-label">Expiring Soon</span>
-                        </div>
-                        <div class="stat-change negative">
-                            <i class="fas fa-arrow-down"></i> 3%
-                        </div>
-                    </div>
-                    <div class="stat-card stat-card-danger" data-page="expiring" role="button" tabindex="0" title="View expired accounts">
-                        <div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div>
-                        <div class="stat-info">
-                            <span class="stat-number" id="statExpired">0</span>
-                            <span class="stat-label">Expired</span>
-                        </div>
-                        <div class="stat-change negative">
-                            <i class="fas fa-arrow-down"></i> 5%
-                        </div>
-                    </div>
-                    <div class="stat-card stat-card-purple" data-page="clients" role="button" tabindex="0" title="Manage clients">
-                        <div class="stat-icon"><i class="fas fa-users"></i></div>
-                        <div class="stat-info">
-                            <span class="stat-number" id="statClients">0</span>
-                            <span class="stat-label">Total Clients</span>
-                        </div>
-                        <div class="stat-change positive">
-                            <i class="fas fa-arrow-up"></i> 8%
-                        </div>
-                    </div>
-                    <div class="stat-card stat-card-teal" data-page="accounts" role="button" tabindex="0" title="View healthy accounts">
-                        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-                        <div class="stat-info">
-                            <span class="stat-number" id="statHealthy">0</span>
-                            <span class="stat-label">Healthy Accounts</span>
-                        </div>
-                        <div class="stat-change positive">
-                            <i class="fas fa-arrow-up"></i> 15%
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Charts Row -->
-                <div class="charts-row">
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3>Expiry Distribution</h3>
-                            <button class="btn btn-sm btn-ghost">View All</button>
-                        </div>
-                        <div class="chart-body">
-                            <canvas id="expiryChart"></canvas>
-                        </div>
+                    <div class="stats-strip">
+                        <span class="stat-pill primary"><i class="fas fa-envelope"></i> <strong id="homeStatTotal">0</strong> <span class="count-label">Emails</span></span>
+                        <span class="stat-pill orange"><i class="fas fa-clock"></i> <strong id="homeStatExpiring">0</strong> <span class="count-label">Expiring</span></span>
+                        <span class="stat-pill red"><i class="fas fa-times-circle"></i> <strong id="homeStatExpired">0</strong> <span class="count-label">Expired</span></span>
                     </div>
-                    <div class="chart-card">
-                        <div class="chart-header">
-                            <h3>Account Health</h3>
-                            <button class="btn btn-sm btn-ghost">View All</button>
-                        </div>
-                        <div class="chart-body">
-                            <canvas id="healthChart"></canvas>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Recent Activity -->
-                <div class="activity-section">
-                    <div class="section-header">
-                        <h3><i class="fas fa-history"></i> Recent Activity</h3>
-                        <button class="btn btn-sm btn-ghost">View All</button>
-                    </div>
-                    <div class="activity-timeline" id="activityTimeline">
+                    <div class="clients-grid" id="clientsHomeGrid">
                         <!-- Rendered by JS -->
                     </div>
                 </div>
             </div>
 
-            <!-- Accounts Page -->
+            <!-- All Emails Page (grouped by client) -->
             <div id="page-accounts" class="page-content">
                 <div class="page-toolbar">
                     <div class="toolbar-left">
@@ -263,61 +193,77 @@
                     </div>
                 </div>
 
-                <div class="table-container">
-                    <table class="modern-table" id="accountsTable">
-                        <thead>
-                            <tr>
-                                <th class="checkbox-col">
-                                    <input type="checkbox" id="selectAllAccounts">
-                                </th>
-                                <th data-sort="client">Client <i class="fas fa-sort"></i></th>
-                                <th data-sort="email">Email <i class="fas fa-sort"></i></th>
-                                <th data-sort="date">Expiry Day <i class="fas fa-sort"></i></th>
-                                <th>Replacement</th>
-                                <th data-sort="status">Status <i class="fas fa-sort"></i></th>
-                                <th data-sort="days">Days Left <i class="fas fa-sort"></i></th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="accountsTableBody">
-                            <!-- Rendered by JS -->
-                        </tbody>
-                    </table>
+                <div class="chip-row" id="statusChips">
+                    <button type="button" class="chip active" data-status="all">All</button>
+                    <button type="button" class="chip chip-danger" data-status="expired">Expired</button>
+                    <button type="button" class="chip chip-warning" data-status="expiring">Expiring</button>
+                    <button type="button" class="chip chip-ok" data-status="ok">OK</button>
+                    <button type="button" class="chip chip-problem" data-status="problem">Problem</button>
                 </div>
 
-                <div class="table-footer">
-                    <span id="accountCount">0 accounts</span>
-                    <div class="pagination">
-                        <button class="btn btn-sm btn-ghost" id="prevPage"><i class="fas fa-chevron-left"></i></button>
-                        <span id="pageInfo">Page 1 of 1</span>
-                        <button class="btn btn-sm btn-ghost" id="nextPage"><i class="fas fa-chevron-right"></i></button>
-                    </div>
+                <div class="list-global-actions">
+                    <label class="select-all-label">
+                        <input type="checkbox" id="selectAllVisible">
+                        <span>Select all shown (<strong id="visibleCount">0</strong>)</span>
+                    </label>
+                    <button class="btn btn-sm btn-ghost" id="clearAllSelectedBtn">
+                        <i class="fas fa-undo"></i> Clear selection
+                    </button>
+                </div>
+
+                <div id="groupedAccountsList">
+                    <!-- Rendered by JS -->
                 </div>
             </div>
 
-            <!-- Clients Page -->
-            <div id="page-clients" class="page-content">
-                <div class="page-toolbar">
-                    <div class="toolbar-left">
-                        <button class="btn btn-secondary btn-sm" id="showAddClientBtn">
-                            <i class="fas fa-user-plus"></i> New Client
-                        </button>
-                        <input type="search" id="clientSearch" class="filter-input" placeholder="Search clients…" autocomplete="off">
-                    </div>
-                    <div class="toolbar-right">
-                        <span class="client-hint" id="clientHint">
-                            Clients come from your account list or the list below
-                        </span>
-                    </div>
-                </div>
-                <div class="new-client-form hidden" id="newClientForm">
-                    <input type="text" id="newClientName" placeholder="Client name" maxlength="80" autocomplete="off">
-                    <button class="btn btn-primary btn-sm" id="saveClientBtn">
-                        <i class="fas fa-check"></i> Add
+            <!-- Client Detail Page -->
+            <div id="page-client" class="page-content">
+                <div class="client-detail-header">
+                    <button class="btn btn-icon" id="clientBackBtn" title="Back to clients" aria-label="Back">
+                        <i class="fas fa-arrow-left"></i>
                     </button>
-                    <button class="btn btn-secondary btn-sm" id="cancelClientBtn">Cancel</button>
+                    <div class="client-detail-title">
+                        <h2 id="clientDetailName">Client</h2>
+                        <div class="client-detail-badges">
+                            <span class="client-detail-badge total" id="clientDetailTotal">0 emails</span>
+                            <span class="notif-badge red" id="clientDetailExpired">0</span>
+                            <span class="notif-badge orange" id="clientDetailExpiring">0</span>
+                        </div>
+                    </div>
+                    <div class="client-detail-actions">
+                        <button class="btn btn-icon" id="clientAddAccount" title="Add account" aria-label="Add account">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <button class="btn btn-icon" id="clientCopyAll" title="Copy all emails" aria-label="Copy emails">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button class="btn btn-icon" id="clientRename" title="Rename client" aria-label="Rename">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-icon btn-danger" id="clientDelete" title="Delete client" aria-label="Delete">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 </div>
-                <div class="clients-grid" id="clientsGrid">
+
+                <div class="chip-row" id="clientStatusChips">
+                    <button type="button" class="chip active" data-status="all">All</button>
+                    <button type="button" class="chip chip-danger" data-status="expired">Expired</button>
+                    <button type="button" class="chip chip-warning" data-status="expiring">Expiring</button>
+                    <button type="button" class="chip chip-ok" data-status="ok">OK</button>
+                </div>
+
+                <div class="list-global-actions">
+                    <label class="select-all-label">
+                        <input type="checkbox" id="clientSelectAll">
+                        <span>Select all for this client (<strong id="clientSelectCount">0</strong>)</span>
+                    </label>
+                    <button class="btn btn-sm btn-ghost" id="clientClearSelection">
+                        <i class="fas fa-undo"></i> Clear
+                    </button>
+                </div>
+
+                <div class="expiring-grid" id="clientDetailList">
                     <!-- Rendered by JS -->
                 </div>
             </div>
@@ -439,13 +385,13 @@
 
     <!-- Bottom Navigation (mobile) -->
     <nav class="bottom-nav" id="bottomNav">
-        <button class="bottom-nav-item active" data-page="dashboard" title="Dashboard">
-            <i class="fas fa-th-large"></i>
-            <span>Home</span>
+        <button class="bottom-nav-item active" data-page="dashboard" title="Clients">
+            <i class="fas fa-building"></i>
+            <span>Clients</span>
         </button>
-        <button class="bottom-nav-item" data-page="accounts" title="Accounts">
-            <i class="fas fa-users"></i>
-            <span>Accounts</span>
+        <button class="bottom-nav-item" data-page="accounts" title="All Emails">
+            <i class="fas fa-envelope"></i>
+            <span>All Emails</span>
         </button>
         <button class="bottom-nav-item" data-page="expiring" title="Expiring">
             <i class="fas fa-clock"></i>
@@ -516,7 +462,7 @@
     </div>
 
     <!-- Install Help Modal (iOS) -->
-    <div id="installHelpModal" class="modal">
+    <div id="installHelpModal" class="modal">  
         <div class="modal-content modal-sm">
             <div class="modal-header">
                 <h3><i class="fas fa-mobile-alt"></i> Install the App</h3>

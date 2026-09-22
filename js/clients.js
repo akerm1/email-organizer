@@ -39,47 +39,48 @@ function getClientSummaries() {
     return names.map(name => ({ name, ...(byClient[name] || { total: 0, ok: 0, expiring: 0, expired: 0, problems: 0 }) }));
 }
 
-// Render the clients grid
-function renderClients() {
-    const grid = document.getElementById('clientsGrid');
+// Render the Clients home grid (client boxes with red/orange notification badges)
+function renderClientsHome() {
+    const grid = document.getElementById('clientsHomeGrid');
     if (!grid) return;
 
-    let summaries = getClientSummaries();
-
-    // Search filter
-    const searchEl = document.getElementById('clientSearch');
-    const query = (searchEl ? searchEl.value : '').trim().toLowerCase();
-    if (query) {
-        summaries = summaries.filter(c => c.name.toLowerCase().includes(query));
-    }
+    const summaries = getClientSummaries().sort((a, b) => {
+        if (b.expired !== a.expired) return b.expired - a.expired;
+        if (b.expiring !== a.expiring) return b.expiring - a.expiring;
+        return a.name.localeCompare(b.name);
+    });
 
     if (summaries.length === 0) {
         grid.innerHTML = `
             <div class="empty-state" style="grid-column: 1/-1;">
-                <i class="fas fa-building"></i>
                 <h3>No clients yet</h3>
-                <p>Add a client to start organizing your accounts.</p>
+                <p>Add your first account or client to get started.</p>
             </div>
         `;
         return;
     }
 
     grid.innerHTML = summaries.map(c => {
-        const enc = encodeURIComponent(c.name);
+        const ref = clientRef(c.name);
         const initials = escapeHtml(clientInitials(c.name));
         const color = clientColor(c.name);
         const problemsTag = c.problems > 0
-            ? `<span class="status-badge problem">${c.problems} problem${c.problems > 1 ? 's' : ''}</span>`
+            ? `<span class="mini-badge problem">${c.problems} problem${c.problems > 1 ? 's' : ''}</span>`
             : '';
         return `
-            <div class="client-card">
+            <div class="client-card home-client-card" onclick="viewClient('${ref}')" role="button" tabindex="0"
+                 onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();viewClient('${ref}')}">
                 <div class="client-card-top">
                     <div class="client-avatar" style="background:${color};">${initials}</div>
                     <div class="client-card-info">
                         <h4>${escapeHtml(c.name)}</h4>
-                        <span>${c.total} account${c.total === 1 ? '' : 's'}</span>
+                        <span>${c.total} email${c.total === 1 ? '' : 's'}</span>
+                        <span class="badge-row">${problemsTag}</span>
                     </div>
-                    ${problemsTag}
+                    <div class="notif-badges">
+                        ${c.expired > 0 ? `<span class="notif-badge red" title="Expired accounts">${c.expired}</span>` : ''}
+                        ${c.expiring > 0 ? `<span class="notif-badge orange" title="Expiring accounts">${c.expiring}</span>` : ''}
+                    </div>
                 </div>
                 <div class="client-stats">
                     <span class="client-stat ok"><i class="fas fa-check-circle"></i> ${c.ok} OK</span>
@@ -87,17 +88,14 @@ function renderClients() {
                     <span class="client-stat danger"><i class="fas fa-times-circle"></i> ${c.expired} expired</span>
                 </div>
                 <div class="client-card-actions">
-                    <button class="btn btn-sm btn-primary" onclick="addAccountForClient('${enc}')" title="Add an account for this client">
-                        <i class="fas fa-plus"></i> Add
+                    <button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation(); selectAllForClientRef('${ref}')">
+                        <i class="fas fa-check-double"></i> Select all
                     </button>
-                    <button class="btn btn-sm btn-ghost" onclick="copyClientEmails('${enc}')" title="Copy all emails">
+                    <button type="button" class="btn btn-sm btn-ghost" onclick="event.stopPropagation(); copyClientByRef('${ref}')" title="Copy all emails">
                         <i class="fas fa-copy"></i> Copy
                     </button>
-                    <button class="btn btn-sm btn-ghost" onclick="renameClientFlow('${enc}')" title="Rename client">
-                        <i class="fas fa-edit"></i> Rename
-                    </button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteClientFlow('${enc}')" title="Delete client">
-                        <i class="fas fa-trash"></i>
+                    <button type="button" class="btn btn-sm btn-ghost" onclick="event.stopPropagation(); viewClient('${ref}')" title="View emails">
+                        View <i class="fas fa-chevron-right"></i>
                     </button>
                 </div>
             </div>
@@ -105,41 +103,36 @@ function renderClients() {
     }).join('');
 }
 
-// Add client inline form
-function showAddClientForm() {
-    document.getElementById('showAddClientBtn').classList.add('hidden');
-    document.getElementById('newClientForm').classList.remove('hidden');
-    document.getElementById('newClientName').focus();
+// ============================================
+// CLIENT ACTIONS (used from client detail / home)
+// ============================================
+
+// Open a client's email set (ref-safe wrapper)
+function viewClient(ref) {
+    const name = clientNameFromRef(ref);
+    if (!name) return;
+    openClientDetail(name);
 }
 
-function hideAddClientForm() {
-    document.getElementById('showAddClientBtn').classList.remove('hidden');
-    document.getElementById('newClientForm').classList.add('hidden');
-    document.getElementById('newClientName').value = '';
+// Copy all emails for a client (ref-safe)
+function copyClientByRef(ref) {
+    const name = clientNameFromRef(ref);
+    if (!name) return;
+    copyClientEmails(name);
 }
 
-async function saveNewClient() {
-    const name = document.getElementById('newClientName').value.trim();
-    if (!name) {
-        showToast('Enter a client name', 'error');
+// Add account for a client
+function addAccountForClient(name) {
+    openAddAccountModal(name);
+}
+
+function copyClientEmails(name) {
+    const emails = window.accounts.filter(a => a.client === name).map(a => a.email);
+    if (emails.length === 0) {
+        showToast('No accounts with emails', 'info');
         return;
     }
-    if ((window.clients || []).includes(name)) {
-        showToast('Client already exists', 'error');
-        return;
-    }
-    try {
-        await addClient(name);
-        lastClientOptionsKey = '';
-        populateClientOptionsIfChanged();
-        hideAddClientForm();
-        renderClients();
-        renderDashboard();
-        showToast(`Client "${name}" added`, 'success');
-    } catch (error) {
-        showToast('Error adding client', 'error');
-        console.error(error);
-    }
+    copyToClipboard(emails.join('\n'));
 }
 
 // Rename a client (also renames all of its accounts)
@@ -155,9 +148,8 @@ async function renameClientFlow(oldName) {
         await renameClient(oldName, trimmed);
         lastClientOptionsKey = '';
         populateClientOptionsIfChanged();
-        renderClients();
-        renderDashboard();
-        renderAccountsTable(getFilteredAccounts());
+        if (activeClient === oldName) activeClient = trimmed;
+        refreshAllViews();
         updateCharts();
         showToast(`Renamed to "${trimmed}"`, 'success');
     } catch (error) {
@@ -179,11 +171,14 @@ async function deleteClientFlow(name) {
         populateClientOptionsIfChanged();
         const cf = document.getElementById('clientFilter');
         if (cf && cf.value === name) cf.value = 'all';
-        renderClients();
-        renderDashboard();
-        renderAccountsTable(getFilteredAccounts());
-        renderExpiringCards();
-        renderProblemAccounts();
+        window.accounts.filter(a => a.client === name).forEach(a => selectedAccounts.delete(a.id));
+
+        if (activeClient === name) {
+            activeClient = '';
+            navigateTo('dashboard');
+        } else {
+            refreshAllViews();
+        }
         updateCharts();
         showToast(`Client "${name}" deleted`, 'success');
     } catch (error) {
@@ -192,32 +187,10 @@ async function deleteClientFlow(name) {
     }
 }
 
-// Quick actions
-function addAccountForClient(name) {
-    openAddAccountModal(name);
-}
-
-function copyClientEmails(name) {
-    const emails = window.accounts.filter(a => a.client === name).map(a => a.email);
-    if (emails.length === 0) {
-        showToast('No accounts with emails', 'info');
-        return;
-    }
-    copyToClipboard(emails.join('\n'));
-}
-
-// Wire up the inline add form
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('showAddClientBtn')?.addEventListener('click', showAddClientForm);
-    document.getElementById('saveClientBtn')?.addEventListener('click', saveNewClient);
-    document.getElementById('cancelClientBtn')?.addEventListener('click', hideAddClientForm);
-    document.getElementById('newClientName')?.addEventListener('keydown', e => {
-        if (e.key === 'Enter') saveNewClient();
-    });
-});
-
 // Export
-window.renderClients = renderClients;
+window.renderClientsHome = renderClientsHome;
+window.viewClient = viewClient;
+window.copyClientByRef = copyClientByRef;
 window.addAccountForClient = addAccountForClient;
 window.copyClientEmails = copyClientEmails;
 window.renameClientFlow = renameClientFlow;

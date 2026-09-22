@@ -175,6 +175,77 @@ function generateId() {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
 }
 
+// ============================================
+// ACCOUNT STATUS HELPERS
+// ============================================
+
+// Full status including problem flag
+function statusOfAccount(account) {
+    if (account.hasProblem) return 'problem';
+    return expiryStatusOnly(account);
+}
+
+// Expiry-only status (ignores problem flag)
+function expiryStatusOnly(account) {
+    const days = getDaysUntilExpiry(account.date);
+    if (days === null) return 'ok';
+    if (days < 0) return 'expired';
+    if (days <= 7) return 'expiring';
+    return 'ok';
+}
+
+// Match an account against a search query (email / client / replacement / expiry day 1-31)
+function accountMatchesQuery(account, q) {
+    const s = String(q || '').trim().toLowerCase();
+    if (!s) return true;
+    if ((account.email || '').toLowerCase().includes(s)) return true;
+    if ((account.client || '').toLowerCase().includes(s)) return true;
+    if ((account.replacementEmail || '').toLowerCase().includes(s)) return true;
+    if (/^\d{1,2}$/.test(s)) {
+        const day = extractDay(account.date);
+        if (day !== null && day === parseInt(s, 10)) return true;
+    }
+    return false;
+}
+
+// Group a list of accounts by client name
+function groupAccountsByClient(list) {
+    const map = {};
+    (list || []).forEach(a => {
+        const key = a.client || 'Unassigned';
+        if (!map[key]) map[key] = { name: key, accounts: [], expired: 0, expiring: 0, problems: 0, total: 0 };
+        map[key].accounts.push(a);
+        map[key].total++;
+        const st = expiryStatusOnly(a);
+        if (st === 'expired') map[key].expired++;
+        else if (st === 'expiring') map[key].expiring++;
+        if (a.hasProblem) map[key].problems++;
+    });
+    return Object.values(map).sort((x, y) => x.name.localeCompare(y.name));
+}
+
+// ============================================
+// CLIENT REFERENCE REGISTRY (name/quote-safe)
+// ============================================
+const clientRefMap = {};
+let clientRefCounter = 0;
+
+function clientRef(name) {
+    const key = String(name);
+    if (!(key in clientRefMap)) {
+        clientRefCounter++;
+        clientRefMap[key] = 'client-' + clientRefCounter;
+    }
+    return clientRefMap[key];
+}
+
+function clientNameFromRef(ref) {
+    for (const key in clientRefMap) {
+        if (clientRefMap[key] === ref) return key;
+    }
+    return '';
+}
+
 // Export
 window.extractDay = extractDay;
 window.formatDateDisplay = formatDateDisplay;
@@ -190,3 +261,9 @@ window.showToast = showToast;
 window.debounce = debounce;
 window.timeAgo = timeAgo;
 window.generateId = generateId;
+window.statusOfAccount = statusOfAccount;
+window.expiryStatusOnly = expiryStatusOnly;
+window.accountMatchesQuery = accountMatchesQuery;
+window.groupAccountsByClient = groupAccountsByClient;
+window.clientRef = clientRef;
+window.clientNameFromRef = clientNameFromRef;

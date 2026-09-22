@@ -20,10 +20,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         
         // Initialize UI
         renderDashboard();
-        renderAccountsTable();
+        renderAccountsTable(getFilteredAccounts());
         renderExpiringCards();
         renderProblemAccounts();
-        renderClients();
         initCharts();
         updateBulkBar();
         updateSettingsStatus();
@@ -83,20 +82,11 @@ function setupEventListeners() {
         document.getElementById('sidebarBackdrop').classList.remove('show');
     });
     
-    // Quick add button
+    // Quick add buttons
     document.getElementById('quickAddBtn').addEventListener('click', openAddAccountModal);
     document.getElementById('addAccountBtn').addEventListener('click', openAddAccountModal);
     document.getElementById('fabAddBtn').addEventListener('click', openAddAccountModal);
 
-    // Clickable dashboard stat cards -> navigate
-    document.querySelectorAll('.stat-card[data-page]').forEach(card => {
-        const go = () => navigateTo(card.dataset.page);
-        card.addEventListener('click', go);
-        card.addEventListener('keydown', e => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
-        });
-    });
-    
     // Account form
     document.getElementById('modalSave').addEventListener('click', saveAccountForm);
     document.getElementById('modalCancel').addEventListener('click', closeAccountModal);
@@ -108,66 +98,77 @@ function setupEventListeners() {
     
     // Search
     document.getElementById('globalSearch').addEventListener('input', debounce(applyFilters, 300));
-    
+
+    // Home search: send the query to the All Emails page (grouped + selectable)
+    document.getElementById('homeSearch').addEventListener('input', debounce(function() {
+        document.getElementById('globalSearch').value = this.value;
+        if (this.value.trim()) navigateTo('accounts');
+        applyFilters();
+    }, 250));
+
+    // Home "Select" button: select/deselect all currently matched accounts
+    document.getElementById('homeSelectAllBtn').addEventListener('click', () => {
+        const list = getFilteredAccounts();
+        if (list.length === 0) return;
+        const allSelected = list.every(a => selectedAccounts.has(a.id));
+        selectInIds(list.map(a => a.id), !allSelected);
+        if (!allSelected) navigateTo('accounts');
+        showToast(allSelected ? 'Selection cleared' : `Selected ${list.length} email(s)`, 'info');
+    });
+
     // Keyboard shortcuts
     document.addEventListener('keydown', handleKeyboardShortcuts);
-    
-    // Table sorting
-    document.querySelectorAll('.modern-table th[data-sort]').forEach(th => {
-        th.addEventListener('click', function() {
-            const column = this.dataset.sort;
-            sortTable(column);
-        });
-    });
-    
-    // Select all
-    document.getElementById('selectAllAccounts').addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('.account-select');
-        checkboxes.forEach(cb => {
-            cb.checked = this.checked;
-            const id = cb.dataset.id;
-            if (this.checked) {
-                selectedAccounts.add(id);
-            } else {
-                selectedAccounts.delete(id);
+
+    // Accounts filters
+    document.getElementById('clientFilter').addEventListener('change', applyFilters);
+    document.getElementById('statusFilter').addEventListener('change', applyFilters);
+
+    // Status chips (All Emails page + Client detail page)
+    document.querySelectorAll('.chip-row').forEach(row => {
+        row.addEventListener('click', function(e) {
+            const chip = e.target.closest('.chip');
+            if (!chip) return;
+            this.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            const status = chip.dataset.status;
+            if (this.id === 'statusChips') {
+                document.getElementById('statusFilter').value = status;
+                applyFilters();
+            } else if (this.id === 'clientStatusChips') {
+                if (activeClient) renderClientDetail(activeClient);
             }
         });
-        updateBulkBar();
-        renderAccountsTable(getFilteredAccounts());
     });
-    
+
+    // Select / clear on the All Emails page
+    document.getElementById('selectAllVisible').addEventListener('change', function() {
+        selectAllVisibleAccounts(this.checked);
+    });
+    document.getElementById('clearAllSelectedBtn').addEventListener('click', clearSelection);
+
     // Bulk select toolbar button: select/deselect all filtered accounts
     document.getElementById('bulkSelectBtn').addEventListener('click', () => {
         const list = getFilteredAccounts();
         if (list.length === 0) return;
         const allSelected = list.every(a => selectedAccounts.has(a.id));
-        list.forEach(a => {
-            if (allSelected) {
-                selectedAccounts.delete(a.id);
-            } else {
-                selectedAccounts.add(a.id);
-            }
-        });
-        document.getElementById('selectAllAccounts').checked = !allSelected;
-        updateBulkBar();
-        renderAccountsTable(list);
+        selectInIds(list.map(a => a.id), !allSelected);
+        document.getElementById('selectAllVisible').checked = !allSelected;
     });
-    
-    // Pagination
-    document.getElementById('prevPage').addEventListener('click', () => {
-        if (currentPageIndex > 0) {
-            currentPageIndex--;
-            renderAccountsTable(getFilteredAccounts());
-        }
+
+    // Client detail page actions
+    document.getElementById('clientBackBtn').addEventListener('click', () => {
+        document.getElementById('globalSearch').value = '';
+        navigateTo('dashboard');
     });
-    document.getElementById('nextPage').addEventListener('click', () => {
-        const total = getFilteredAccounts().length;
-        if ((currentPageIndex + 1) * PAGE_SIZE < total) {
-            currentPageIndex++;
-            renderAccountsTable(getFilteredAccounts());
-        }
+    document.getElementById('clientAddAccount').addEventListener('click', () => openAddAccountModal(activeClient));
+    document.getElementById('clientCopyAll').addEventListener('click', () => copyClientEmails(activeClient));
+    document.getElementById('clientRename').addEventListener('click', () => renameClientFlow(activeClient));
+    document.getElementById('clientDelete').addEventListener('click', () => deleteClientFlow(activeClient));
+    document.getElementById('clientSelectAll').addEventListener('change', function() {
+        selectAllClientDetail(this.checked);
     });
-    
+    document.getElementById('clientClearSelection').addEventListener('click', () => selectInIds(lastRenderedClientIds, false));
+
     // Resolve all problems
     document.getElementById('resolveAllBtn').addEventListener('click', resolveAllProblems);
     
@@ -186,9 +187,6 @@ function setupEventListeners() {
     // Problems page filters
     document.getElementById('problemSearch').addEventListener('input', debounce(renderProblemAccounts, 250));
     document.getElementById('problemClientFilter').addEventListener('change', renderProblemAccounts);
-
-    // Clients page search
-    document.getElementById('clientSearch').addEventListener('input', debounce(renderClients, 250));
     
     // Send manual notifications
     document.getElementById('sendManualNotify').addEventListener('click', async function() {
@@ -230,10 +228,6 @@ function setupEventListeners() {
     // Single form day picker sync
     document.getElementById('formDay').addEventListener('input', () => refreshDayPicker('formDay', 'formDayPicker'));
     
-    // Accounts filters
-    document.getElementById('clientFilter').addEventListener('change', applyFilters);
-    document.getElementById('statusFilter').addEventListener('change', applyFilters);
-    
     // Confirm modal
     document.getElementById('confirmYes').addEventListener('click', function() {
         const mode = this.dataset.action;
@@ -273,7 +267,7 @@ function setupEventListeners() {
         const value = e.target.value.trim();
         const msg = document.getElementById('mobileSearchMessage');
         if (msg) {
-            msg.textContent = value ? 'Results shown in Accounts' : 'Type to search across emails and clients';
+            msg.textContent = value ? 'Results shown in All Emails' : 'Type to search across emails, clients and expiry days';
         }
         if (value) navigateTo('accounts');
         applyFilters();
@@ -283,6 +277,14 @@ function setupEventListeners() {
     document.getElementById('bulkCopyBtn').addEventListener('click', bulkCopySelected);
     document.getElementById('bulkExportBtn').addEventListener('click', bulkExportSelected);
     document.getElementById('bulkDeleteBtn').addEventListener('click', bulkDeleteConfirm);
+
+    // Delegated: per-client "select all" checkboxes inside group headers
+    document.addEventListener('change', function(e) {
+        const el = e.target;
+        if (el.classList && el.classList.contains('select-all-client')) {
+            handleGroupSelectAll(el);
+        }
+    });
 }
 
 // Navigation
@@ -308,9 +310,9 @@ function navigateTo(page) {
     
     // Update topbar
     const titles = {
-        dashboard: ['Dashboard', 'Overview of your email accounts'],
-        accounts: ['Accounts', 'Manage all your email accounts'],
-        clients: ['Clients', 'Manage your clients'],
+        dashboard: ['Clients', 'Open a client to manage its emails'],
+        accounts: ['All Emails', 'Search by email, client, or expiry day'],
+        client: ['Client', 'Emails for this client'],
         expiring: ['Expiring', 'Accounts that need attention'],
         problems: ['Problems', 'Accounts with issues'],
         analytics: ['Analytics', 'Insights and statistics'],
@@ -325,11 +327,22 @@ function navigateTo(page) {
     
     // Refresh data if needed
     if (page === 'dashboard') renderDashboard();
-    if (page === 'accounts') renderAccountsTable();
-    if (page === 'clients') renderClients();
+    if (page === 'accounts') renderAccountsTable(getFilteredAccounts());
+    if (page === 'client' && activeClient) renderClientDetail(activeClient);
     if (page === 'expiring') renderExpiringCards();
     if (page === 'problems') renderProblemAccounts();
     if (page === 'analytics') updateCharts();
+}
+
+// Open the detail view for a single client
+function openClientDetail(name) {
+    if (!name || !window.clients.includes(name)) name = name || window.clients[0];
+    activeClient = name;
+    const chips = document.querySelectorAll('#clientStatusChips .chip');
+    if (chips.length) {
+        chips.forEach(c => c.classList.toggle('active', c.dataset.status === 'all'));
+    }
+    navigateTo('client');
 }
 
 // Toggle theme
@@ -578,11 +591,7 @@ async function saveBulkAccounts() {
         );
         document.getElementById('bulkInput').value = '';
         closeAccountModal();
-        renderDashboard();
-        renderAccountsTable();
-        renderExpiringCards();
-        renderProblemAccounts();
-        renderClients();
+        refreshAllViews();
         updateCharts();
     } catch (error) {
         showToast('Error adding accounts', 'error');
@@ -591,36 +600,27 @@ async function saveBulkAccounts() {
 }
 
 // Combine search + client + status filters
-function statusOf(account, days) {
-    if (account.hasProblem) return 'problem';
-    if (days === null) return 'ok';
-    if (days < 0) return 'expired';
-    if (days <= 7) return 'expiring';
-    return 'ok';
-}
-
 function getFilteredAccounts() {
     let list = window.accounts.slice();
     const q = ((document.getElementById('globalSearch')?.value || '') +
                (document.getElementById('mobileSearch')?.value || '')).trim().toLowerCase();
     if (q) {
-        list = list.filter(a =>
-            a.email.toLowerCase().includes(q) ||
-            a.client.toLowerCase().includes(q) ||
-            (a.replacementEmail || '').toLowerCase().includes(q)
-        );
+        list = list.filter(a => accountMatchesQuery(a, q));
     }
     const client = document.getElementById('clientFilter')?.value || 'all';
     if (client !== 'all') list = list.filter(a => a.client === client);
     const status = document.getElementById('statusFilter')?.value || 'all';
     if (status !== 'all') {
-        list = list.filter(a => statusOf(a, getDaysUntilExpiry(a.date)) === status);
+        list = list.filter(a => statusOfAccount(a) === status);
     }
     return list;
 }
 
 function applyFilters() {
-    currentPageIndex = 0;
+    const status = document.getElementById('statusFilter')?.value || 'all';
+    document.querySelectorAll('#statusChips .chip').forEach(c => {
+        c.classList.toggle('active', c.dataset.status === status);
+    });
     renderAccountsTable(getFilteredAccounts());
 }
 
@@ -644,11 +644,7 @@ async function resolveAllProblems() {
             a.problemNote = '';
         });
         showToast(`Resolved ${problems.length} problem(s)`, 'success');
-        renderDashboard();
-        renderAccountsTable();
-        renderExpiringCards();
-        renderProblemAccounts();
-        renderClients();
+        refreshAllViews();
         updateCharts();
     } catch (error) {
         showToast('Error resolving problems', 'error');
@@ -719,11 +715,7 @@ async function saveAccountForm() {
         }
         
         closeAccountModal();
-        renderDashboard();
-        renderAccountsTable();
-        renderExpiringCards();
-        renderProblemAccounts();
-        renderClients();
+        refreshAllViews();
         updateCharts();
         
     } catch (error) {
@@ -740,11 +732,7 @@ async function deleteAccount(id) {
         selectedAccounts.delete(id);
         syncClients();
         showToast('Account deleted', 'success');
-        renderDashboard();
-        renderAccountsTable();
-        renderExpiringCards();
-        renderProblemAccounts();
-        renderClients();
+        refreshAllViews();
         updateCharts();
     } catch (error) {
         showToast('Error deleting account', 'error');
@@ -754,18 +742,11 @@ async function deleteAccount(id) {
 // Handle search
 function handleSearch(query) {
     if (!query) {
-        currentPageIndex = 0;
-        renderAccountsTable();
+        renderAccountsTable(getFilteredAccounts());
         return;
     }
     
-    currentPageIndex = 0;
-    const filtered = window.accounts.filter(a => {
-        const search = query.toLowerCase();
-        return a.email.toLowerCase().includes(search) ||
-               a.client.toLowerCase().includes(search) ||
-               (a.replacementEmail && a.replacementEmail.toLowerCase().includes(search));
-    });
+    const filtered = window.accounts.filter(a => accountMatchesQuery(a, query));
     
     renderAccountsTable(filtered);
 }
@@ -778,8 +759,7 @@ function closeMobileSearch() {
     if (input) input.value = '';
     const msg = document.getElementById('mobileSearchMessage');
     if (msg) msg.textContent = 'Type to search across emails and clients';
-    currentPageIndex = 0;
-    renderAccountsTable();
+    renderAccountsTable(getFilteredAccounts());
 }
 
 // Bulk actions: get selected accounts
@@ -835,11 +815,7 @@ async function bulkDeleteSelected(run) {
         syncClients();
         updateBulkBar();
         showToast(`Deleted ${ids.length} accounts`, 'success');
-        renderDashboard();
-        renderAccountsTable();
-        renderExpiringCards();
-        renderProblemAccounts();
-        renderClients();
+        refreshAllViews();
         updateCharts();
     } catch (error) {
         showToast('Error deleting accounts', 'error');
@@ -895,6 +871,7 @@ function openExportMenu() {
 window.navigateTo = navigateTo;
 window.toggleTheme = toggleTheme;
 window.openAddAccountModal = openAddAccountModal;
+window.openClientDetail = openClientDetail;
 window.saveAccountForm = saveAccountForm;
 window.closeAccountModal = closeAccountModal;
 window.deleteAccount = deleteAccount;

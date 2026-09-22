@@ -5,331 +5,239 @@
 // State
 let currentPage = 'dashboard';
 let selectedAccounts = new Set();
+let activeClient = '';
 let currentSort = { column: null, direction: 'asc' };
-let currentPageIndex = 0;
-const PAGE_SIZE = 25;
+let lastRenderedGroups = {};
+let lastRenderedClientIds = [];
 
-// Render dashboard
-function renderDashboard() {
-    const total = window.accounts.length;
-    const expiring = getExpiringAccounts().length;
-    const expired = window.accounts.filter(a => {
-        const days = getDaysUntilExpiry(a.date);
-        return days !== null && days < 0;
-    }).length;
-    const clients = window.clients.length;
-    const healthy = window.accounts.filter(a => !a.hasProblem && !isExpiring(a)).length;
-    
-    // Update stats
-    document.getElementById('statTotal').textContent = total;
-    document.getElementById('statExpiring').textContent = expiring;
-    document.getElementById('statExpired').textContent = expired;
-    document.getElementById('statClients').textContent = clients;
-    document.getElementById('statHealthy').textContent = healthy;
-    
-    // Update badges
-    document.getElementById('totalBadge').textContent = total;
-    document.getElementById('accountBadge').textContent = total;
-    document.getElementById('expiringBadge').textContent = expiring;
-    document.getElementById('problemBadge').textContent = window.accounts.filter(a => a.hasProblem).length;
+// ============================================
+// SMALL HELPERS
+// ============================================
 
-    // Clients nav badge
-    const clientNavBadge = document.getElementById('clientNavBadge');
-    if (clientNavBadge) clientNavBadge.textContent = clients;
-    
-    // Update bottom nav badges (mobile)
-    const bottomExpiring = document.getElementById('bottomExpiringBadge');
-    const bottomProblem = document.getElementById('bottomProblemBadge');
-    if (bottomExpiring) bottomExpiring.textContent = expiring;
-    if (bottomProblem) bottomProblem.textContent = window.accounts.filter(a => a.hasProblem).length;
-    if (bottomExpiring) bottomExpiring.style.display = expiring > 0 ? 'flex' : 'none';
-    if (bottomProblem) bottomProblem.style.display = window.accounts.filter(a => a.hasProblem).length > 0 ? 'flex' : 'none';
-    
-    // Render activity
-    renderActivity();
+function setText(id, val) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
 }
 
-// Check if account is expiring
+function emptyStateHTML(title, text) {
+    return `
+        <div class="empty-state">
+            <h3>${escapeHtml(title)}</h3>
+            <p>${escapeHtml(text)}</p>
+        </div>`;
+}
+
+// ============================================
+// DASHBOARD / HOME
+// ============================================
+
+function renderDashboard() {
+    const total = window.accounts.length;
+    const expiring = window.accounts.filter(a => expiryStatusOnly(a) === 'expiring').length;
+    const expired = window.accounts.filter(a => expiryStatusOnly(a) === 'expired').length;
+    const problems = window.accounts.filter(a => a.hasProblem).length;
+
+    setText('homeStatTotal', total);
+    setText('homeStatExpiring', expiring);
+    setText('homeStatExpired', expired);
+    setText('totalBadge', total);
+    setText('accountBadge', total);
+    setText('expiringBadge', expiring);
+    setText('problemBadge', problems);
+
+    const bExp = document.getElementById('bottomExpiringBadge');
+    const bPro = document.getElementById('bottomProblemBadge');
+    if (bExp) {
+        bExp.textContent = expiring;
+        bExp.style.display = expiring > 0 ? 'flex' : 'none';
+    }
+    if (bPro) {
+        bPro.textContent = problems;
+        bPro.style.display = problems > 0 ? 'flex' : 'none';
+    }
+
+    if (typeof renderClientsHome === 'function') renderClientsHome();
+}
+
+// Check if account is expiring (within next 30 days)
 function isExpiring(account) {
     const days = getDaysUntilExpiry(account.date);
     return days !== null && days <= 30 && days >= 0;
 }
 
-// Render activity timeline
-function renderActivity() {
-    const timeline = document.getElementById('activityTimeline');
-    const recent = [...window.accounts]
-        .sort((a, b) => {
-            const aDays = getDaysUntilExpiry(a.date) || 999;
-            const bDays = getDaysUntilExpiry(b.date) || 999;
-            return aDays - bDays;
-        })
-        .slice(0, 10);
-    
-    if (recent.length === 0) {
-        timeline.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-inbox"></i>
-                <p>No accounts yet. Start by adding your first account!</p>
-            </div>
-        `;
-        return;
-    }
-    
-    timeline.innerHTML = recent.map(account => {
-        const days = getDaysUntilExpiry(account.date);
-        const status = account.hasProblem ? 'problem' : 
-                      days < 0 ? 'expired' :
-                      days === 0 ? 'today' :
-                      days <= 7 ? 'warning' : 'ok';
-        const icon = account.hasProblem ? 'fa-exclamation-triangle' :
-                    days < 0 ? 'fa-times-circle' :
-                    days === 0 ? 'fa-clock' : 'fa-check-circle';
-        const color = account.hasProblem ? 'var(--danger)' :
-                     days < 0 ? 'var(--danger)' :
-                     days === 0 ? 'var(--warning)' :
-                     days <= 7 ? 'var(--warning)' : 'var(--success)';
-        
-        return `
-            <div class="activity-item">
-                <div class="activity-icon" style="color: ${color}">
-                    <i class="fas ${icon}"></i>
+// ============================================
+// EMAIL CARDS (shared by every list)
+// ============================================
+
+function accountCardHTML(account, opts = {}) {
+    const isSelected = selectedAccounts.has(account.id);
+    const days = getDaysUntilExpiry(account.date);
+    let status = statusOfAccount(account);
+    if (account.status === 'today') status = 'today';
+    else if (account.status === 'upcoming') status = 'expiring';
+
+    const labels = { problem: 'Problem', expired: 'Expired', today: 'Expires today', expiring: 'Expiring', ok: 'OK' };
+    const daysLabel = days === null ? '—' : (days < 0 ? `${-days}d ago` : `${days}d`);
+    const daysClass = days === null ? 'ok' : (days < 0 ? 'danger' : (days <= 7 ? 'warning' : 'ok'));
+
+    const note = opts.problem && account.problemNote
+        ? `<div class="email-card-note"><i class="fas fa-sticky-note"></i> ${escapeHtml(account.problemNote)}</div>`
+        : '';
+    const resolveBtn = opts.problem
+        ? `<button type="button" class="btn btn-sm btn-success" onclick="resolveProblem('${account.id}')" title="Resolve"><i class="fas fa-check"></i> Resolve</button>`
+        : '';
+    const clientLine = opts.hideClient ? '' :
+        `<span class="email-card-client"><i class="fas fa-user"></i> ${escapeHtml(account.client || 'Unassigned')}</span>`;
+
+    return `
+        <div class="email-card ${isSelected ? 'selected' : ''}">
+            <label class="email-card-check">
+                <input type="checkbox" class="account-select" data-id="${account.id}" ${isSelected ? 'checked' : ''} onchange="toggleAccountSelect('${account.id}')">
+            </label>
+            <div class="email-card-main">
+                <div class="email-card-row">
+                    <span class="email-card-email" title="${escapeHtml(account.email)}">${escapeHtml(account.email)}</span>
+                    <span class="status-badge ${status}">${labels[status] || status}</span>
                 </div>
-                <div class="activity-content">
-                    <div class="activity-title">
-                        <strong>${escapeHtml(account.email)}</strong>
-                        <span class="activity-client">${escapeHtml(account.client)}</span>
-                    </div>
-                    <div class="activity-meta">
-                        ${days !== null ? `${days < 0 ? 'Expired' : `${days}d left`}` : 'No date'}
-                        ${account.replacementEmail ? `→ ${escapeHtml(account.replacementEmail)}` : ''}
-                    </div>
+                ${account.replacementEmail ? `<div class="email-card-replacement"><i class="fas fa-exchange-alt"></i> ${escapeHtml(account.replacementEmail)}</div>` : ''}
+                <div class="email-card-meta">
+                    ${clientLine}
+                    <span><i class="fas fa-calendar-day"></i> Expires ${formatDateDisplay(account.date)}</span>
+                    <span class="days-badge ${daysClass}">${daysLabel}</span>
                 </div>
-                <div class="activity-time">
-                    <span class="status-badge ${status}">${status}</span>
+                ${note}
+                <div class="email-card-actions">
+                    ${resolveBtn}
+                    <button type="button" class="btn btn-sm btn-ghost" onclick="editAccount('${account.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button type="button" class="btn btn-sm btn-ghost" onclick="copyToClipboard('${escapeHtml(account.email)}')" title="Copy email"><i class="fas fa-copy"></i></button>
+                    <button type="button" class="btn btn-sm btn-ghost btn-danger" onclick="deleteAccountConfirm('${account.id}')" title="Delete"><i class="fas fa-trash"></i></button>
                 </div>
             </div>
-        `;
-    }).join('');
+        </div>`;
 }
 
-// Render accounts table
-function renderAccountsTable(filteredAccounts = null) {
-    const accountsToRender = filteredAccounts || window.accounts;
-    const tbody = document.getElementById('accountsTableBody');
-    
-    // Sort
-    if (currentSort.column) {
-        accountsToRender.sort((a, b) => {
-            let valA = a[currentSort.column] || '';
-            let valB = b[currentSort.column] || '';
-            
-            if (currentSort.column === 'date') {
-                valA = extractDay(a.date) || 999;
-                valB = extractDay(b.date) || 999;
-            } else if (currentSort.column === 'days') {
-                valA = getDaysUntilExpiry(a.date) || 999;
-                valB = getDaysUntilExpiry(b.date) || 999;
-            } else if (currentSort.column === 'status') {
-                valA = a.hasProblem ? 'problem' : 'ok';
-                valB = b.hasProblem ? 'problem' : 'ok';
-            } else {
-                valA = valA.toLowerCase();
-                valB = valB.toLowerCase();
-            }
-            
-            if (valA < valB) return currentSort.direction === 'asc' ? -1 : 1;
-            if (valA > valB) return currentSort.direction === 'asc' ? 1 : -1;
-            return 0;
-        });
-    }
-    
-    // Pagination
-    const start = currentPageIndex * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
-    const pageAccounts = accountsToRender.slice(start, end);
-    
-    if (pageAccounts.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="8" class="empty-cell">
-                    <div class="empty-state">
-                        <i class="fas fa-inbox"></i>
-                        <p>No accounts found</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        document.getElementById('accountCount').textContent = '0 accounts';
-        document.getElementById('pageInfo').textContent = 'Page 0 of 0';
+function groupSectionHTML(group, opts = {}) {
+    const ref = clientRef(group.name);
+    lastRenderedGroups[`${opts.namespace}:${ref}`] = group.accounts.map(a => a.id);
+
+    const counts = [];
+    if (group.expired > 0) counts.push(`<span class="mini-badge danger"><i class="fas fa-times-circle"></i> ${group.expired}</span>`);
+    if (group.expiring > 0) counts.push(`<span class="mini-badge warning"><i class="fas fa-clock"></i> ${group.expiring}</span>`);
+
+    const allSel = group.accounts.length > 0 && group.accounts.every(a => selectedAccounts.has(a.id));
+
+    return `
+        <section class="account-group">
+            <div class="group-header">
+                <label class="group-select">
+                    <input type="checkbox" class="select-all-client" data-client="${ref}" ${allSel ? 'checked' : ''}>
+                    <span class="group-title">
+                        <strong>${escapeHtml(group.name)}</strong>
+                        <span class="group-counts">${group.accounts.length} emails ${counts.join(' ')}</span>
+                    </span>
+                </label>
+                <button type="button" class="btn btn-sm btn-icon" onclick="viewClient('${ref}')" title="Open client"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <div class="group-card-list">
+                ${group.accounts.map(a => accountCardHTML(a, opts)).join('')}
+            </div>
+        </section>`;
+}
+
+function clearGroupNamespace(ns) {
+    Object.keys(lastRenderedGroups).forEach(k => {
+        if (k.startsWith(ns + ':')) delete lastRenderedGroups[k];
+    });
+}
+
+function sortByUrgency(list) {
+    return list.slice().sort((a, b) => {
+        const da = getDaysUntilExpiry(a.date);
+        const db = getDaysUntilExpiry(b.date);
+        if (da === null && db === null) return 0;
+        if (da === null) return 1;
+        if (db === null) return -1;
+        if (da !== db) return da - db;
+        return (a.email || '').localeCompare(b.email || '');
+    });
+}
+
+// ============================================
+// ALL EMAILS PAGE (grouped by client)
+// ============================================
+
+function renderAccountsTable(filtered = null) {
+    const container = document.getElementById('groupedAccountsList');
+    if (!container) return;
+
+    const list = Array.isArray(filtered) ? filtered : window.accounts;
+    const groups = groupAccountsByClient(sortByUrgency(list));
+
+    clearGroupNamespace('accounts');
+
+    const vc = document.getElementById('visibleCount');
+    if (vc) vc.textContent = list.length;
+
+    const allSel = list.length > 0 && list.filter(a => selectedAccounts.has(a.id)).length === list.length;
+    const selBox = document.getElementById('selectAllVisible');
+    if (selBox) selBox.checked = allSel;
+
+    if (groups.length === 0) {
+        container.innerHTML = emptyStateHTML('No accounts found', 'Try clearing your search or filters.');
         return;
     }
-    
-    tbody.innerHTML = pageAccounts.map(account => {
-        const isSelected = selectedAccounts.has(account.id);
-        const days = getDaysUntilExpiry(account.date);
-        const status = account.hasProblem ? 'problem' :
-                      days < 0 ? 'expired' :
-                      days <= 7 ? 'expiring' : 'ok';
-        const statusLabel = account.hasProblem ? 'Problem' :
-                           days < 0 ? 'Expired' :
-                           days <= 7 ? 'Expiring' : 'OK';
-        const daysLabel = days !== null ? 
-                         (days < 0 ? `${days}d` : `${days}d`) : 
-                         '—';
-        const daysClass = days !== null ?
-                         (days < 0 ? 'expired' :
-                          days === 0 ? 'danger' :
-                          days <= 7 ? 'warning' : 'ok') :
-                         'ok';
-        
-        return `
-            <tr class="${isSelected ? 'selected' : ''} ${account.hasProblem ? 'problem-row' : ''}">
-                <td class="checkbox-col cell-check">
-                    <input type="checkbox" class="account-select" 
-                           data-id="${account.id}" 
-                           ${isSelected ? 'checked' : ''}
-                           onchange="toggleAccountSelect('${account.id}')">
-                </td>
-                <td class="cell-client"><strong>${escapeHtml(account.client)}</strong></td>
-                <td class="cell-email" data-label="Email">${escapeHtml(account.email)}</td>
-                <td class="cell-expiry" data-label="Expiry Day">${formatDateDisplay(account.date)}</td>
-                <td class="cell-replacement" data-label="Replacement">${account.replacementEmail ? escapeHtml(account.replacementEmail) : '—'}</td>
-                <td class="cell-status" data-label="Status"><span class="status-badge ${status}">${statusLabel}</span></td>
-                <td class="cell-days" data-label="Days Left"><span class="days-badge ${daysClass}">${daysLabel}</span></td>
-                <td class="cell-actions">
-                    <div class="action-buttons">
-                        <button class="btn btn-sm btn-ghost" onclick="editAccount('${account.id}')" title="Edit">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-sm btn-ghost" onclick="copyToClipboard('${escapeHtml(account.email)}')" title="Copy">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                        <button class="btn btn-sm btn-ghost" onclick="deleteAccountConfirm('${account.id}')" title="Delete">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
-    }).join('');
-    
-    document.getElementById('accountCount').textContent = 
-        `${accountsToRender.length} account${accountsToRender.length > 1 ? 's' : ''}`;
-    document.getElementById('pageInfo').textContent = 
-        `Page ${currentPageIndex + 1} of ${Math.ceil(accountsToRender.length / PAGE_SIZE) || 1}`;
+
+    container.innerHTML = groups.map(g => groupSectionHTML(g, { namespace: 'accounts' })).join('');
 }
 
-// Toggle account selection
-function toggleAccountSelect(id) {
-    if (selectedAccounts.has(id)) {
-        selectedAccounts.delete(id);
-    } else {
-        selectedAccounts.add(id);
-    }
-    updateBulkBar();
-    renderAccountsTable(getFilteredAccounts());
-}
+// ============================================
+// EXPIRING PAGE (grouped by client, selectable)
+// ============================================
 
-// Update bulk actions bar
-function updateBulkBar() {
-    const bar = document.getElementById('bulkActionsBar');
-    if (!bar) return;
-    
-    const count = selectedAccounts.size;
-    if (count > 0) {
-        bar.style.display = 'flex';
-        document.getElementById('bulkCount').textContent = count;
-    } else {
-        bar.style.display = 'none';
-    }
-}
-
-// Render expiring cards
 function renderExpiringCards() {
     const grid = document.getElementById('expiringGrid');
+    if (!grid) return;
+
     const windowDays = getNotificationSettings().daysBefore;
     let expiring = getAccountsWithin(windowDays);
 
-    // Client filter
     const cfEl = document.getElementById('expiringClientFilter');
     const cf = cfEl ? cfEl.value : 'all';
     if (cf !== 'all') expiring = expiring.filter(a => a.client === cf);
 
-    // Status filter
     const sfEl = document.getElementById('expiringStatusFilter');
     const sf = sfEl ? sfEl.value : 'all';
     if (sf !== 'all') expiring = expiring.filter(a => a.status === sf);
 
-    if (expiring.length === 0) {
+    const groups = groupAccountsByClient(sortByUrgency(expiring));
+    clearGroupNamespace('expiring');
+
+    if (groups.length === 0) {
         grid.innerHTML = `
-            <div class="empty-state" style="grid-column: 1/-1;">
-                <i class="fas fa-check-circle" style="font-size: 48px; color: var(--success);"></i>
+            <div class="empty-state">
                 <h3>All Clear!</h3>
                 <p>No accounts match the current filters in this timeframe.</p>
-            </div>
-        `;
+            </div>`;
         return;
     }
-    
-    grid.innerHTML = expiring.map(account => {
-        const days = account.daysUntilExpiry;
-        const status = account.status;
-        const daysClass = status === 'expired' ? 'danger' :
-                         status === 'today' ? 'danger' :
-                         days <= 3 ? 'danger' :
-                         days <= 7 ? 'warning' : 'ok';
-        
-        return `
-            <div class="expiring-card">
-                <div class="card-header">
-                    <div>
-                        <div class="card-email">${escapeHtml(account.email)}</div>
-                        <div class="card-client">${escapeHtml(account.client)}</div>
-                    </div>
-                    <div class="card-days ${daysClass}">
-                        ${status === 'expired' ? '💀' : 
-                          status === 'today' ? '🔥' : 
-                          `${days}d`}
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div style="font-size: 13px; color: var(--text-secondary);">
-                        ${status === 'expired' ? 'Expired' :
-                          status === 'today' ? 'Expires TODAY' :
-                          `Expires in ${days} day${days > 1 ? 's' : ''}`}
-                    </div>
-                    <div style="font-size: 13px; color: var(--text-secondary);">
-                        Replacement: ${account.replacementEmail ? escapeHtml(account.replacementEmail) : 'Not set'}
-                    </div>
-                </div>
-                <div class="card-footer">
-                    <span class="status-badge ${status}">${status}</span>
-                    <div class="action-buttons">
-                        <button class="btn btn-sm btn-ghost" onclick="editAccount('${account.id}')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn btn-sm btn-ghost" onclick="copyToClipboard('${escapeHtml(account.email)}')">
-                            <i class="fas fa-copy"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
+
+    grid.innerHTML = groups.map(g => groupSectionHTML(g, { namespace: 'expiring' })).join('');
 }
 
-// Render problem accounts
+// ============================================
+// PROBLEMS PAGE (grouped by client, selectable)
+// ============================================
+
 function renderProblemAccounts() {
     const grid = document.getElementById('problemsGrid');
+    if (!grid) return;
+
     let problems = window.accounts.filter(a => a.hasProblem);
 
-    // Client filter
     const cfEl = document.getElementById('problemClientFilter');
     const cf = cfEl ? cfEl.value : 'all';
     if (cf !== 'all') problems = problems.filter(a => a.client === cf);
 
-    // Search (email or problem note)
     const searchEl = document.getElementById('problemSearch');
     const query = (searchEl ? searchEl.value : '').trim().toLowerCase();
     if (query) {
@@ -340,71 +248,184 @@ function renderProblemAccounts() {
         );
     }
 
-    if (problems.length === 0) {
-        grid.innerHTML = `
-            <div class="empty-state" style="grid-column: 1/-1;">
-                <i class="fas fa-check-circle" style="font-size: 48px; color: var(--success);"></i>
-                <h3>No Problems!</h3>
-                <p>All accounts are in good standing.</p>
-            </div>
-        `;
+    const groups = groupAccountsByClient(sortByUrgency(problems));
+    clearGroupNamespace('problems');
+
+    if (groups.length === 0) {
+        grid.innerHTML = emptyStateHTML('No Problems!', 'All accounts are in good standing.');
         return;
     }
-    
-    grid.innerHTML = problems.map(account => `
-        <div class="expiring-card problem-card">
-            <div class="card-header">
-                <div>
-                    <div class="card-email">${escapeHtml(account.email)}</div>
-                    <div class="card-client">${escapeHtml(account.client)}</div>
-                </div>
-                <span class="status-badge problem">Problem</span>
-            </div>
-            <div class="card-body">
-                <div style="font-size: 13px; color: var(--text-secondary);">
-                    <strong>Note:</strong> ${escapeHtml(account.problemNote || 'No details provided')}
-                </div>
-                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">
-                    Expires: ${formatDateDisplay(account.date)}
-                </div>
-            </div>
-            <div class="card-footer">
-                <div class="action-buttons">
-                    <button class="btn btn-sm btn-success" onclick="resolveProblem('${account.id}')">
-                        <i class="fas fa-check"></i> Resolve
-                    </button>
-                    <button class="btn btn-sm btn-ghost" onclick="editAccount('${account.id}')">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    `).join('');
+
+    grid.innerHTML = groups.map(g => groupSectionHTML(g, { namespace: 'problems', problem: true })).join('');
 }
+
+// ============================================
+// CLIENT DETAIL PAGE
+// ============================================
+
+function renderClientDetail(name) {
+    activeClient = name;
+
+    const nameEl = document.getElementById('clientDetailName');
+    if (nameEl) nameEl.textContent = name;
+
+    let list = window.accounts.filter(a => (a.client || 'Unassigned') === name);
+
+    const status = document.querySelector('#clientStatusChips .chip.active')?.dataset.status || 'all';
+    if (status !== 'all') list = list.filter(a => expiryStatusOnly(a) === status);
+
+    list = sortByUrgency(list);
+    lastRenderedClientIds = list.map(a => a.id);
+
+    const total = window.accounts.filter(a => (a.client || 'Unassigned') === name).length;
+    const expired = list.filter(a => expiryStatusOnly(a) === 'expired').length;
+    const expiring = list.filter(a => expiryStatusOnly(a) === 'expiring').length;
+
+    setText('clientDetailTotal', `${total} email${total === 1 ? '' : 's'}`);
+
+    const redB = document.getElementById('clientDetailExpired');
+    if (redB) { redB.textContent = expired; redB.style.display = expired > 0 ? 'inline-flex' : 'none'; }
+    const orgB = document.getElementById('clientDetailExpiring');
+    if (orgB) { orgB.textContent = expiring; orgB.style.display = expiring > 0 ? 'inline-flex' : 'none'; }
+
+    const selBox = document.getElementById('clientSelectAll');
+    if (selBox) selBox.checked = list.length > 0 && list.filter(a => selectedAccounts.has(a.id)).length === list.length;
+    setText('clientSelectCount', list.length);
+
+    const container = document.getElementById('clientDetailList');
+    if (!container) return;
+
+    if (list.length === 0) {
+        container.innerHTML = emptyStateHTML('No emails', 'This client has no matching emails.');
+        return;
+    }
+
+    container.innerHTML = list.map(a => accountCardHTML(a, { hideClient: true })).join('');
+}
+
+// ============================================
+// SELECTION
+// ============================================
+
+// Toggle account selection
+function toggleAccountSelect(id) {
+    if (selectedAccounts.has(id)) {
+        selectedAccounts.delete(id);
+    } else {
+        selectedAccounts.add(id);
+    }
+    updateBulkBar();
+    refreshAllViews();
+}
+
+// Select/deselect a specific set of ids
+function selectInIds(ids, checked) {
+    (ids || []).forEach(id => {
+        if (checked) selectedAccounts.add(id);
+        else selectedAccounts.delete(id);
+    });
+    updateBulkBar();
+    refreshAllViews();
+}
+
+// Select/deselect every account belonging to a client
+function selectAllAccountsOfClient(name, checked) {
+    const ids = window.accounts.filter(a => (a.client || 'Unassigned') === name).map(a => a.id);
+    selectInIds(ids, checked);
+}
+
+// Toggle "select all for this client" from a client card on the home screen
+function selectAllForClientRef(ref) {
+    const name = clientNameFromRef(ref);
+    if (!name) return;
+    const ids = window.accounts.filter(a => (a.client || 'Unassigned') === name).map(a => a.id);
+    const allSelected = ids.length > 0 && ids.filter(id => selectedAccounts.has(id)).length === ids.length;
+    selectInIds(ids, !allSelected);
+    showToast(allSelected ? `Deselected ${ids.length} email(s) for ${name}` : `Selected ${ids.length} email(s) for ${name}`, 'info');
+}
+
+// Select/deselect all accounts currently shown by the main filters
+function selectAllVisibleAccounts(checked) {
+    const list = typeof getFilteredAccounts === 'function' ? getFilteredAccounts() : window.accounts;
+    selectInIds(list.map(a => a.id), checked);
+}
+
+// Handle a per-client group 'select all' checkbox (event delegation target)
+function handleGroupSelectAll(el) {
+    const ns = currentPage === 'expiring' ? 'expiring' : currentPage === 'problems' ? 'problems' : 'accounts';
+    const ids = lastRenderedGroups[`${ns}:${el.dataset.client}`] || [];
+    selectInIds(ids, el.checked);
+}
+
+// Select/deselect the currently shown emails on the client detail page
+function selectAllClientDetail(checked) {
+    selectInIds(lastRenderedClientIds, checked);
+}
+
+// Clear the entire selection
+function clearSelection() {
+    selectedAccounts.clear();
+    updateBulkBar();
+    refreshAllViews();
+}
+
+// Update bulk actions bar
+function updateBulkBar() {
+    const bar = document.getElementById('bulkActionsBar');
+    if (!bar) return;
+
+    const count = selectedAccounts.size;
+    if (count > 0) {
+        bar.style.display = 'flex';
+        document.getElementById('bulkCount').textContent = count;
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+// ============================================
+// COMMON REFRESH
+// ============================================
+
+function refreshAllViews() {
+    renderDashboard();
+    renderAccountsTable(getFilteredAccounts());
+    renderExpiringCards();
+    renderProblemAccounts();
+    if (activeClient) renderClientDetail(activeClient);
+}
+
+// ============================================
+// PROBLEM RESOLUTION
+// ============================================
 
 // Resolve problem
 async function resolveProblem(id) {
     const account = window.accounts.find(a => a.id === id);
     if (!account) return;
-    
+
     try {
         account.hasProblem = false;
         account.problemNote = '';
         await updateAccount(id, account);
+        selectedAccounts.delete(id);
         showToast('Problem resolved!', 'success');
-        renderProblemAccounts();
-        renderDashboard();
-        renderAccountsTable();
+        refreshAllViews();
+        updateCharts();
     } catch (error) {
         showToast('Error resolving problem', 'error');
     }
 }
 
+// ============================================
+// ACCOUNT EDIT / DELETE
+// ============================================
+
 // Edit account modal
 function editAccount(id) {
     const account = window.accounts.find(a => a.id === id);
     if (!account) return;
-    
+
     setAddModalMode('single', false);
     document.getElementById('accountModal').classList.remove('add-mode');
     populateClientOptionsIfChanged();
@@ -416,8 +437,7 @@ function editAccount(id) {
     document.getElementById('formReplacement').value = account.replacementEmail || '';
     document.getElementById('formNotes').value = account.problemNote || '';
     document.getElementById('formHasProblem').checked = account.hasProblem;
-    
-    // Store ID for update
+
     document.getElementById('accountForm').dataset.editId = id;
     document.getElementById('modalSave').innerHTML = '<i class="fas fa-edit"></i> Update Account';
     document.getElementById('modalSave').disabled = false;
@@ -428,8 +448,8 @@ function editAccount(id) {
 function deleteAccountConfirm(id) {
     const account = window.accounts.find(a => a.id === id);
     if (!account) return;
-    
-    document.getElementById('confirmMessage').textContent = 
+
+    document.getElementById('confirmMessage').textContent =
         `Delete account ${account.email} for ${account.client}?`;
     document.getElementById('confirmModal').classList.add('active');
     const yesBtn = document.getElementById('confirmYes');
@@ -442,7 +462,17 @@ window.renderDashboard = renderDashboard;
 window.renderAccountsTable = renderAccountsTable;
 window.renderExpiringCards = renderExpiringCards;
 window.renderProblemAccounts = renderProblemAccounts;
+window.renderClientDetail = renderClientDetail;
+window.refreshAllViews = refreshAllViews;
 window.toggleAccountSelect = toggleAccountSelect;
+window.selectInIds = selectInIds;
+window.selectAllAccountsOfClient = selectAllAccountsOfClient;
+window.selectAllForClientRef = selectAllForClientRef;
+window.selectAllVisibleAccounts = selectAllVisibleAccounts;
+window.handleGroupSelectAll = handleGroupSelectAll;
+window.selectAllClientDetail = selectAllClientDetail;
+window.clearSelection = clearSelection;
+window.updateBulkBar = updateBulkBar;
 window.editAccount = editAccount;
 window.deleteAccountConfirm = deleteAccountConfirm;
 window.resolveProblem = resolveProblem;
